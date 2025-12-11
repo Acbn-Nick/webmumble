@@ -6,26 +6,43 @@
     <title>WebMumble</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-      body {
-        background-color: #2b2b2b;
-        color: #f0f0f0;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        overflow: hidden; /* App-like feel */
+      :root {
+        --glass-bg: rgba(255, 255, 255, 0.08);
+        --glass-bg-hover: rgba(255, 255, 255, 0.12);
+        --glass-border: rgba(255, 255, 255, 0.15);
+        --glass-border-light: rgba(255, 255, 255, 0.25);
+        --input-bg: rgba(0, 0, 0, 0.3);
+        --text-primary: #f0f0f5;
+        --text-muted: rgba(255, 255, 255, 0.6);
+        --accent-blue: #58a6ff;
+        --accent-green: #3fb950;
+        --accent-red: #f85149;
+        --glow-blue: rgba(88, 166, 255, 0.4);
+        --glow-green: rgba(63, 185, 80, 0.4);
+        --glow-red: rgba(248, 81, 73, 0.4);
       }
-      /* Custom scrollbar for that desktop app feel */
+      body {
+        background: linear-gradient(135deg, rgba(10,10,15,0.85) 0%, rgba(26,26,46,0.85) 50%, rgba(15,15,26,0.85) 100%),
+                    url('/gemini.png') center/cover no-repeat fixed;
+        color: var(--text-primary);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        overflow: hidden;
+        min-height: 100vh;
+      }
+      /* Custom scrollbar for glass aesthetic */
       ::-webkit-scrollbar {
         width: 8px;
         height: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: #2b2b2b;
+        background: rgba(0, 0, 0, 0.2);
       }
       ::-webkit-scrollbar-thumb {
-        background: #444;
+        background: rgba(255, 255, 255, 0.15);
         border-radius: 4px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: #555;
+        background: rgba(255, 255, 255, 0.25);
       }
     </style>
   <script type="importmap">

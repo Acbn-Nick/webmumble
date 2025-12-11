@@ -13,14 +13,14 @@ export const ChannelTree: React.FC<ChannelTreeProps> = ({ channel, onChannelSele
 
   return (
     <div className="pl-4 select-none">
-      <div 
-        className={`flex items-center group cursor-pointer py-0.5 px-1 rounded-sm ${isSelected ? 'bg-blue-900/50 text-white font-medium' : 'hover:bg-[#3a3a3a] text-gray-300'}`}
+      <div
+        className={`flex items-center group cursor-pointer py-1 px-2 rounded-lg transition-all ${isSelected ? 'bg-[rgba(88,166,255,0.15)] text-white font-medium border border-[rgba(88,166,255,0.3)] shadow-[0_0_10px_rgba(88,166,255,0.2)]' : 'hover:bg-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.8)] border border-transparent'}`}
         onClick={(e) => {
           e.stopPropagation();
           onChannelSelect(channel.id);
         }}
       >
-        <span className="mr-1 opacity-70">
+        <span className="mr-1.5 opacity-70">
           {channel.isExpanded ? <FolderOpen size={14} /> : <Folder size={14} />}
         </span>
         <span className="text-sm truncate">{channel.name}</span>
@@ -54,22 +54,22 @@ export const ChannelTree: React.FC<ChannelTreeProps> = ({ channel, onChannelSele
 
 const UserItem: React.FC<{ user: User }> = ({ user }) => {
   // Determine Lip/User icon color
-  let iconColor = "text-gray-400";
-  if (user.isTalking) iconColor = "text-green-500 shadow-[0_0_10px_rgba(34,197,94,0.6)]";
-  else if (user.isMuted) iconColor = "text-red-500";
+  let iconColor = "text-[rgba(255,255,255,0.5)]";
+  if (user.isTalking) iconColor = "text-[#3fb950] drop-shadow-[0_0_8px_rgba(63,185,80,0.6)]";
+  else if (user.isMuted) iconColor = "text-[#f85149]";
 
   return (
-    <div className="flex items-center py-0.5 px-1 hover:bg-[#3a3a3a] rounded-sm cursor-default">
+    <div className={`flex items-center py-1 px-2 hover:bg-[rgba(255,255,255,0.05)] rounded-lg cursor-default transition-all ${user.isTalking ? 'bg-[rgba(63,185,80,0.1)] border border-[rgba(63,185,80,0.2)]' : 'border border-transparent'}`}>
       <div className={`mr-1.5 transition-all duration-100 ${iconColor}`}>
         <UserIcon size={14} fill={user.isTalking ? "currentColor" : "none"} />
       </div>
-      <span className={`text-sm ${user.isSelf ? 'font-semibold text-white' : 'text-gray-300'}`}>
+      <span className={`text-sm ${user.isSelf ? 'font-semibold text-white' : 'text-[rgba(255,255,255,0.8)]'}`}>
         {user.name}
       </span>
-      
-      <div className="ml-auto flex space-x-1 opacity-60">
-        {user.isMuted && <MicOff size={10} className="text-red-400" />}
-        {user.isDeafened && <Headphones size={10} className="text-red-400" />}
+
+      <div className="ml-auto flex space-x-1 opacity-70">
+        {user.isMuted && <MicOff size={10} className="text-[#f85149]" />}
+        {user.isDeafened && <Headphones size={10} className="text-[#f85149]" />}
       </div>
     </div>
   );

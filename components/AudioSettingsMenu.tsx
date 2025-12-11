@@ -85,37 +85,37 @@ export const AudioSettingsMenu: React.FC<AudioSettingsMenuProps> = ({
   return (
     <div ref={menuRef} className="relative">
       <span
-        className="cursor-pointer hover:bg-[#555] px-1 rounded"
+        className="cursor-pointer hover:bg-[rgba(255,255,255,0.1)] px-2 py-0.5 rounded-md transition-all"
         onClick={() => setIsOpen(!isOpen)}
       >
         Audio
       </span>
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-1 bg-[#3a3a3a] border border-[#555] rounded shadow-lg z-50 min-w-[220px]">
+        <div className="fixed top-7 bg-[rgba(255,255,255,0.1)] backdrop-blur-xl border border-[rgba(255,255,255,0.15)] rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] z-[9999] min-w-[220px] overflow-hidden">
           {/* PTT Enable/Disable */}
           <div
-            className="px-3 py-2 hover:bg-[#4a4a4a] cursor-pointer flex items-center justify-between"
+            className="px-3 py-2.5 hover:bg-[rgba(255,255,255,0.08)] cursor-pointer flex items-center justify-between transition-all"
             onClick={() => onPttEnabledChange(!pttEnabled)}
           >
-            <span>Push to Talk</span>
-            <span className={`text-xs px-2 py-0.5 rounded ${pttEnabled ? 'bg-green-600' : 'bg-gray-600'}`}>
+            <span className="text-[rgba(255,255,255,0.9)]">Push to Talk</span>
+            <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${pttEnabled ? 'bg-[rgba(63,185,80,0.3)] text-[#3fb950] shadow-[0_0_8px_rgba(63,185,80,0.3)]' : 'bg-[rgba(255,255,255,0.1)] text-[rgba(255,255,255,0.5)]'}`}>
               {pttEnabled ? 'ON' : 'OFF'}
             </span>
           </div>
 
           {/* PTT Key Binding */}
-          <div className="px-3 py-2 hover:bg-[#4a4a4a] border-t border-[#555]">
+          <div className="px-3 py-2.5 hover:bg-[rgba(255,255,255,0.08)] border-t border-[rgba(255,255,255,0.1)] transition-all">
             <div className="flex items-center justify-between">
-              <span>PTT Key:</span>
+              <span className="text-[rgba(255,255,255,0.9)]">PTT Key:</span>
               {isBinding ? (
-                <span className="text-xs px-2 py-1 bg-yellow-600 rounded animate-pulse">
+                <span className="text-xs px-2 py-1 bg-[rgba(210,153,34,0.3)] text-[#d29922] rounded-md animate-pulse shadow-[0_0_8px_rgba(210,153,34,0.3)]">
                   Press a key...
                 </span>
               ) : (
                 <button
                   onClick={() => setIsBinding(true)}
-                  className="text-xs px-2 py-1 bg-[#555] hover:bg-[#666] rounded"
+                  className="text-xs px-2 py-1 bg-[rgba(255,255,255,0.1)] hover:bg-[rgba(255,255,255,0.15)] rounded-md text-[rgba(255,255,255,0.8)] transition-all"
                 >
                   {pttKey ? getKeyDisplayName(pttKey) : 'Not set'}
                 </button>
@@ -126,7 +126,7 @@ export const AudioSettingsMenu: React.FC<AudioSettingsMenuProps> = ({
           {/* Clear PTT Key */}
           {pttKey && (
             <div
-              className="px-3 py-2 hover:bg-[#4a4a4a] border-t border-[#555] cursor-pointer text-red-400"
+              className="px-3 py-2.5 hover:bg-[rgba(248,81,73,0.1)] border-t border-[rgba(255,255,255,0.1)] cursor-pointer text-[#f85149] transition-all"
               onClick={() => {
                 onPttKeyChange(null);
                 setIsOpen(false);
@@ -136,7 +136,7 @@ export const AudioSettingsMenu: React.FC<AudioSettingsMenuProps> = ({
             </div>
           )}
 
-          <div className="px-3 py-2 border-t border-[#555] text-xs text-gray-400">
+          <div className="px-3 py-2.5 border-t border-[rgba(255,255,255,0.1)] text-xs text-[rgba(255,255,255,0.4)]">
             {pttEnabled
               ? 'Hold the PTT key to transmit'
               : 'Enable PTT to use key binding'}

@@ -24,60 +24,60 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   serverName
 }) => {
   return (
-    <div className="h-12 bg-[#333] border-b border-[#111] flex items-center px-2 shadow-sm select-none">
-      
+    <div className="h-12 bg-[rgba(255,255,255,0.05)] backdrop-blur-md border-b border-[rgba(255,255,255,0.1)] flex items-center px-2 shadow-sm select-none">
+
       {/* Connection Controls */}
-      <div className="flex items-center space-x-1 mr-4 border-r border-[#555] pr-4">
+      <div className="flex items-center space-x-1 mr-4 border-r border-[rgba(255,255,255,0.1)] pr-4">
         {connectionState === ConnectionState.DISCONNECTED ? (
-            <button 
+            <button
                 onClick={onConnect}
-                className="flex items-center space-x-1 px-3 py-1.5 bg-[#444] hover:bg-[#555] rounded text-xs text-white border border-[#222]"
+                className="flex items-center space-x-1 px-3 py-1.5 bg-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.15)] rounded-lg text-xs text-white border border-[rgba(255,255,255,0.15)] transition-all"
             >
                 <Globe size={14} />
                 <span>Connect</span>
             </button>
         ) : (
-            <button 
+            <button
                 onClick={onDisconnect}
-                className="flex items-center space-x-1 px-3 py-1.5 bg-[#444] hover:bg-[#555] rounded text-xs text-white border border-[#222]"
+                className="flex items-center space-x-1 px-3 py-1.5 bg-[rgba(255,255,255,0.08)] hover:bg-[rgba(255,255,255,0.15)] rounded-lg text-xs text-white border border-[rgba(255,255,255,0.15)] transition-all"
             >
                 <Link2Off size={14} />
                 <span>Disconnect</span>
             </button>
         )}
-        
-        <button className="p-1.5 hover:bg-[#444] rounded text-gray-300 disabled:opacity-30">
+
+        <button className="p-1.5 hover:bg-[rgba(255,255,255,0.1)] rounded-lg text-[rgba(255,255,255,0.6)] transition-all disabled:opacity-30">
             <Server size={16} />
         </button>
       </div>
 
       {/* Audio Controls */}
       <div className="flex items-center space-x-1">
-        <button 
+        <button
             onClick={toggleMute}
-            className={`p-1.5 rounded border border-transparent ${isMuted ? 'bg-red-900/50 text-red-400 border-red-900' : 'hover:bg-[#444] text-gray-200'}`}
+            className={`p-1.5 rounded-lg border transition-all ${isMuted ? 'bg-[rgba(248,81,73,0.2)] text-[#f85149] border-[rgba(248,81,73,0.3)] shadow-[0_0_10px_rgba(248,81,73,0.3)]' : 'hover:bg-[rgba(255,255,255,0.1)] text-[rgba(255,255,255,0.8)] border-transparent'}`}
             title="Mute Self"
         >
             {isMuted ? <MicOff size={18} /> : <Mic size={18} />}
         </button>
-        
-        <button 
+
+        <button
             onClick={toggleDeafen}
-            className={`p-1.5 rounded border border-transparent ${isDeafened ? 'bg-red-900/50 text-red-400 border-red-900' : 'hover:bg-[#444] text-gray-200'}`}
+            className={`p-1.5 rounded-lg border transition-all ${isDeafened ? 'bg-[rgba(248,81,73,0.2)] text-[#f85149] border-[rgba(248,81,73,0.3)] shadow-[0_0_10px_rgba(248,81,73,0.3)]' : 'hover:bg-[rgba(255,255,255,0.1)] text-[rgba(255,255,255,0.8)] border-transparent'}`}
             title="Deafen Self"
         >
             <Headphones size={18} />
         </button>
       </div>
 
-      <div className="ml-auto flex items-center text-xs text-gray-400">
+      <div className="ml-auto flex items-center text-xs text-[rgba(255,255,255,0.5)]">
          {connectionState === ConnectionState.CONNECTED && (
              <span className="mr-4 flex items-center">
-                 <Link2 size={12} className="mr-1 text-green-500" />
+                 <Link2 size={12} className="mr-1 text-[#3fb950] drop-shadow-[0_0_4px_rgba(63,185,80,0.5)]" />
                  Connected to: <span className="text-white ml-1 font-semibold">{serverName}</span>
              </span>
          )}
-         <button className="p-1.5 hover:bg-[#444] rounded">
+         <button className="p-1.5 hover:bg-[rgba(255,255,255,0.1)] rounded-lg transition-all">
              <Settings size={16} />
          </button>
       </div>

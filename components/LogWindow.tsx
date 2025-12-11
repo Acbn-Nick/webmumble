@@ -51,9 +51,9 @@ const ChatMessage: React.FC<{ text: string; sender?: string }> = ({ text, sender
 
   return (
     <span>
-      <span className="font-bold text-black">&lt;{sender}&gt;</span>{' '}
+      <span className="font-bold text-[#58a6ff]">&lt;{sender}&gt;</span>{' '}
       <span
-        className="chat-content"
+        className="chat-content text-[rgba(255,255,255,0.9)]"
         dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
       />
     </span>
@@ -68,31 +68,35 @@ export const LogWindow: React.FC<LogWindowProps> = ({ logs }) => {
   }, [logs]);
 
   return (
-    <div className="flex-1 bg-white text-black p-2 overflow-y-auto font-mono text-xs border-l border-[#444] h-full">
+    <div className="flex-1 bg-transparent text-[#f0f0f5] p-3 overflow-y-auto font-mono text-xs h-full">
       <style>{`
         .chat-content img {
           max-width: 300px;
           max-height: 300px;
-          border-radius: 4px;
+          border-radius: 8px;
           margin: 4px 0;
           display: block;
+          border: 1px solid rgba(255, 255, 255, 0.1);
         }
         .chat-content a {
-          color: #2563eb;
+          color: #58a6ff;
           text-decoration: underline;
+        }
+        .chat-content a:hover {
+          text-shadow: 0 0 8px rgba(88, 166, 255, 0.5);
         }
       `}</style>
       {logs.map((log) => (
-        <div key={log.id} className="mb-0.5 break-words">
-          <span className="text-gray-500 mr-2">[{log.timestamp}]</span>
+        <div key={log.id} className="mb-1 break-words py-0.5">
+          <span className="text-[rgba(255,255,255,0.4)] mr-2">[{log.timestamp}]</span>
           {log.type === 'server' && (
-            <span className="text-blue-700 font-bold">{log.text}</span>
+            <span className="text-[#58a6ff] font-semibold">{log.text}</span>
           )}
           {log.type === 'error' && (
-            <span className="text-red-600 font-bold">{log.text}</span>
+            <span className="text-[#f85149] font-semibold">{log.text}</span>
           )}
           {log.type === 'info' && (
-            <span className="text-green-700">{log.text}</span>
+            <span className="text-[#3fb950]">{log.text}</span>
           )}
           {log.type === 'chat' && (
             <ChatMessage text={log.text} sender={log.sender} />

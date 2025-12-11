@@ -42,6 +42,7 @@ const App: React.FC = () => {
   const socketService = useRef<MumbleSocketService | null>(null);
   const audioPlayback = useRef<AudioPlaybackService | null>(null);
   const audioCapture = useRef<AudioCaptureService | null>(null);
+  const initialized = useRef(false);
 
   // Helper to add logs
   const addLog = useCallback((text: string, type: LogMessage['type'] = 'info', sender?: string) => {
@@ -112,6 +113,9 @@ const App: React.FC = () => {
 
   // Initial Setup
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+
     addLog("WebMumble Client Initialized.", 'info');
     // Initialize socket service
     socketService.current = new MumbleSocketService(handleBackendMessage, handleDisconnect);
@@ -269,17 +273,17 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen w-full bg-[#2b2b2b] text-[#f0f0f0] overflow-hidden">
+    <div className="flex flex-col h-screen w-full bg-transparent text-[#f0f0f5] overflow-hidden">
       {/* Dialog */}
       {showConnectDialog && (
-          <ConnectDialog 
-            onConnect={initiateConnection} 
-            onCancel={() => setShowConnectDialog(false)} 
+          <ConnectDialog
+            onConnect={initiateConnection}
+            onCancel={() => setShowConnectDialog(false)}
           />
       )}
 
       {/* Top Menu Bar */}
-      <div className="h-6 bg-gradient-to-b from-[#444] to-[#333] flex items-center px-2 text-[11px] space-x-3 select-none border-b border-black text-white">
+      <div className="h-6 bg-[rgba(255,255,255,0.05)] backdrop-blur-md flex items-center px-2 text-[11px] space-x-3 select-none border-b border-[rgba(255,255,255,0.1)] text-[rgba(255,255,255,0.8)]">
         <span>Server</span>
         <span>Self</span>
         <AudioSettingsMenu
@@ -313,7 +317,7 @@ const App: React.FC = () => {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left Side: Channel Tree */}
-        <div className="w-[300px] flex flex-col border-r border-[#111] bg-[#222]">
+        <div className="w-[300px] flex flex-col border-r border-[rgba(255,255,255,0.1)] bg-[rgba(255,255,255,0.05)] backdrop-blur-xl">
            <div className="flex-1 overflow-y-auto p-2">
              <ChannelTree
                 channel={rootChannel}
@@ -324,9 +328,9 @@ const App: React.FC = () => {
         </div>
 
         {/* Right Side: Log / Chat */}
-        <div className="flex-1 flex flex-col bg-white">
+        <div className="flex-1 flex flex-col bg-[rgba(0,0,0,0.2)] backdrop-blur-md">
             <LogWindow logs={logs} />
-            
+
             {/* Chat Input Area */}
             <ChatInput
               disabled={connectionState !== ConnectionState.CONNECTED}
@@ -338,7 +342,7 @@ const App: React.FC = () => {
       </div>
 
       {/* Footer Status */}
-      <div className="h-6 bg-[#333] border-t border-[#111] flex items-center px-2 text-xs text-gray-400 justify-between">
+      <div className="h-6 bg-[rgba(255,255,255,0.05)] backdrop-blur-md border-t border-[rgba(255,255,255,0.1)] flex items-center px-2 text-xs text-[rgba(255,255,255,0.5)] justify-between">
           <div>
               {connectionState === ConnectionState.CONNECTED 
                 ? "UDP: Active (Tunnel)" 

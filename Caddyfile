@@ -1,0 +1,26 @@
+# WebMumble Caddy Configuration
+# Replace 'your-domain.com' with your actual domain
+
+your-domain.com {
+    # Serve static frontend files
+    root * /raid/Bay2/git/webmumble/dist
+    file_server
+
+    # Proxy WebSocket connections to Python backend
+    handle /ws {
+        reverse_proxy localhost:9847
+    }
+
+    # SPA fallback - serve index.html for client-side routing
+    try_files {path} /index.html
+
+    # Security headers
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+
+    # Enable compression
+    encode gzip zstd
+}

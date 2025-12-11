@@ -157,13 +157,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   }, [sendMessage]);
 
   return (
-    <div className="bg-[#e0e0e0] border-t border-gray-400">
+    <div className="bg-[rgba(255,255,255,0.05)] border-t border-[rgba(255,255,255,0.1)]">
       {/* Image Preview */}
       {(imagePreview || isCompressing) && (
-        <div className="p-2 border-b border-gray-300 flex items-start gap-2">
+        <div className="p-2 border-b border-[rgba(255,255,255,0.1)] flex items-start gap-2">
           {isCompressing ? (
-            <div className="flex items-center gap-2 text-gray-500">
-              <div className="w-5 h-5 border-2 border-gray-400 border-t-blue-500 rounded-full animate-spin" />
+            <div className="flex items-center gap-2 text-[rgba(255,255,255,0.5)]">
+              <div className="w-5 h-5 border-2 border-[rgba(255,255,255,0.2)] border-t-[#58a6ff] rounded-full animate-spin" />
               <span className="text-xs">Compressing image...</span>
             </div>
           ) : (
@@ -172,25 +172,25 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 <img
                   src={imagePreview!}
                   alt="Preview"
-                  className="max-h-24 max-w-48 rounded border border-gray-400"
+                  className="max-h-24 max-w-48 rounded-lg border border-[rgba(255,255,255,0.15)]"
                 />
                 <button
                   onClick={clearImage}
-                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600"
+                  className="absolute -top-2 -right-2 bg-[#f85149] text-white rounded-full p-0.5 hover:bg-[#ff6b61] shadow-[0_0_10px_rgba(248,81,73,0.4)] transition-all"
                   title="Remove image"
                 >
                   <X size={14} />
                 </button>
               </div>
-              <span className="text-xs text-gray-500">Press Enter to send</span>
+              <span className="text-xs text-[rgba(255,255,255,0.4)]">Press Enter to send</span>
             </>
           )}
         </div>
       )}
 
       {/* Input Row */}
-      <div className="h-10 flex items-center px-2">
-        <span className="text-black text-xs font-bold mr-2">
+      <div className="h-12 flex items-center px-3">
+        <span className="text-[rgba(255,255,255,0.6)] text-xs font-bold mr-2">
           To {channelLabel}:
         </span>
 
@@ -207,10 +207,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={disabled}
-          className="p-1 mr-1 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="p-1.5 mr-2 rounded-lg hover:bg-[rgba(255,255,255,0.1)] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           title="Upload image"
         >
-          <ImagePlus size={18} className="text-gray-600" />
+          <ImagePlus size={18} className="text-[rgba(255,255,255,0.6)]" />
         </button>
 
         {/* Text input */}
@@ -222,7 +222,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           onKeyDown={onKeyDown}
           onPaste={onPaste}
           disabled={disabled}
-          className="flex-1 h-6 text-sm border border-gray-400 px-1 focus:outline-none focus:border-blue-500 disabled:bg-gray-200 text-black"
+          className="flex-1 h-8 text-sm bg-[rgba(0,0,0,0.3)] border border-[rgba(255,255,255,0.1)] rounded-lg px-3 focus:outline-none focus:border-[#58a6ff] focus:shadow-[0_0_10px_rgba(88,166,255,0.2)] disabled:opacity-50 text-white placeholder-[rgba(255,255,255,0.4)] transition-all"
           placeholder={imagePreview ? "Add a caption (optional)..." : placeholder}
         />
       </div>
