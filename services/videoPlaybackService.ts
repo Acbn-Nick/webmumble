@@ -177,7 +177,7 @@ export class VideoPlaybackService {
           if (frag) fragments.push(frag);
         }
         const fullBase64 = fragments.join('');
-        const imageUrl = `data:image/jpeg;base64,${fullBase64}`;
+        const imageUrl = `data:image/webp;base64,${fullBase64}`;
 
         // Update stream
         let stream = this.streams.get(msg.userId);

@@ -250,10 +250,10 @@ export class VideoCaptureService {
     this.canvas.height = height;
     this.ctx.drawImage(video, 0, 0, width, height);
 
-    // Compress to JPEG
-    const dataUrl = this.canvas.toDataURL('image/jpeg', this.config.quality);
+    // Compress to WebP (smaller than JPEG at similar quality)
+    const dataUrl = this.canvas.toDataURL('image/webp', this.config.quality);
     const base64Data = dataUrl.split(',')[1];
-    console.log(`[VideoCapture] Frame captured: ${width}x${height}, ${base64Data.length} bytes base64`);
+    console.log(`[VideoCapture] Frame captured: ${width}x${height}, ${base64Data.length} bytes base64 (WebP)`);
 
     // Fragment and send
     const fragments = this.fragmentData(base64Data);
