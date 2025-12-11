@@ -20,7 +20,7 @@ export interface VideoCaptureConfig {
 }
 
 const DEFAULT_CONFIG: VideoCaptureConfig = {
-  fps: 5,          // 5 FPS - balance between smoothness and Mumble message throughput
+  fps: 2,          // 2 FPS - stable for Mumble text message throughput
   quality: 0.3,    // Lower quality for smaller fragments
   maxWidth: 640,
   maxHeight: 360,
