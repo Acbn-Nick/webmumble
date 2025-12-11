@@ -10,10 +10,13 @@ View your app in AI Studio: https://ai.studio/apps/temp/1
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
+**Prerequisites:** Node.js, Python 3
 
+```bash
+git clone <repo-url>
+cd webmumble
+npm install
+npm run dev
+```
 
-1. Install dependencies:
-   `npm install`
-2. Run the app:
-   `npm run dev`
+The Python virtual environment and dependencies are automatically set up on first run.

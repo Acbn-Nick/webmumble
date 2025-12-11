@@ -4,10 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "predev": "fuser -k 9847/tcp 3000/tcp 2>/dev/null || true",
+    "predev": "npm run setup && fuser -k 9847/tcp 3000/tcp 2>/dev/null || true",
     "dev": "concurrently --kill-others --kill-others-on-fail -n \"backend,frontend\" -c \"cyan,magenta\" \"npm run backend\" \"npm run frontend\"",
     "frontend": "vite",
     "backend": "cd backend && ./venv/bin/python server.py",
+    "setup": "test -d backend/venv || (echo 'Setting up Python environment...' && cd backend && python3 -m venv venv && ./venv/bin/pip install -r requirements.txt)",
     "backend:install": "cd backend && python3 -m venv venv && ./venv/bin/pip install -r requirements.txt",
     "cleanup": "fuser -k 9847/tcp 3000/tcp 3001/tcp 2>/dev/null || true",
     "build": "vite build",

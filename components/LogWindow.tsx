@@ -37,6 +37,12 @@ const decodeAndSanitizeChatHtml = (html: string): string => {
     // Ignore if decoding fails
   }
 
+  // Make all links open in new tab
+  decoded = decoded.replace(
+    /<a\s+(?![^>]*target=)/gi,
+    '<a target="_blank" rel="noopener noreferrer" '
+  );
+
   return decoded;
 };
 
