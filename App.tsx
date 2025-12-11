@@ -167,6 +167,13 @@ const App: React.FC = () => {
            }
          }
          break;
+
+      case 'subscriber_gone':
+         // A subscriber has disconnected, remove them from our list
+         if (payload.userId && videoCapture.current?.isSharing()) {
+           videoCapture.current.removeSubscriber(payload.userId);
+         }
+         break;
     }
   }, [addLog]);
 
@@ -221,14 +228,35 @@ const App: React.FC = () => {
       // onStreamUpdate
       (streams) => {
         console.log('[App] onStreamUpdate called, streams:', streams.size);
-        setVideoStreams(new Map(streams));
+        const newStreams = new Map(streams);
+        setVideoStreams(newStreams);
+
+        // Auto-hide panel when no active streams and not streaming ourselves
+        if (newStreams.size === 0 && !videoCapture.current?.isSharing()) {
+          setAvailableStreams(current => {
+            if (current.size === 0) {
+              setShowVideoPanel(false);
+            }
+            return current;
+          });
+        }
       },
       // onAvailableStreamsUpdate
       (streams) => {
-        setAvailableStreams(new Map(streams));
+        const newAvailable = new Map(streams);
+        setAvailableStreams(newAvailable);
+
         // Auto-show panel when streams become available
-        if (streams.size > 0) {
+        if (newAvailable.size > 0) {
           setShowVideoPanel(true);
+        } else {
+          // Auto-hide panel when no available streams (unless we're streaming or have active streams)
+          setVideoStreams(current => {
+            if (current.size === 0 && !videoCapture.current?.isSharing()) {
+              setShowVideoPanel(false);
+            }
+            return current;
+          });
         }
       },
       // onSendSubscribe - send subscription messages via direct message to streamer

@@ -1,6 +1,27 @@
 import React, { useState } from 'react';
 import { ServerConfig } from '../types';
-import { Globe, ShieldAlert } from 'lucide-react';
+import { Globe, ShieldAlert, RefreshCw } from 'lucide-react';
+
+const ADJECTIVES = [
+  'Calm', 'Swift', 'Brave', 'Clever', 'Happy', 'Lucky', 'Mighty', 'Noble',
+  'Quick', 'Silent', 'Wise', 'Bold', 'Bright', 'Cool', 'Eager', 'Fancy',
+  'Gentle', 'Jolly', 'Kind', 'Lively', 'Merry', 'Nice', 'Proud', 'Sleepy',
+  'Sunny', 'Witty', 'Zesty', 'Cosmic', 'Fluffy', 'Sneaky', 'Spicy', 'Chill'
+];
+
+const ANIMALS = [
+  'Donkey', 'Panda', 'Tiger', 'Eagle', 'Dolphin', 'Fox', 'Wolf', 'Bear',
+  'Hawk', 'Otter', 'Koala', 'Falcon', 'Shark', 'Lion', 'Owl', 'Rabbit',
+  'Badger', 'Raven', 'Moose', 'Gecko', 'Penguin', 'Parrot', 'Sloth', 'Lynx',
+  'Cobra', 'Bison', 'Crane', 'Lemur', 'Hippo', 'Walrus', 'Ferret', 'Toucan'
+];
+
+function generateRandomName(): string {
+  const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
+  const animal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
+  const num = Math.floor(Math.random() * 100);
+  return `${adj}${animal}${num}`;
+}
 
 interface ConnectDialogProps {
   onConnect: (config: ServerConfig) => void;
@@ -10,7 +31,7 @@ interface ConnectDialogProps {
 export const ConnectDialog: React.FC<ConnectDialogProps> = ({ onConnect, onCancel }) => {
   const [address, setAddress] = useState('localhost');
   const [port, setPort] = useState('64738');
-  const [username, setUsername] = useState('WebUser');
+  const [username, setUsername] = useState(generateRandomName);
   const [insecure, setInsecure] = useState(true);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -55,14 +76,24 @@ export const ConnectDialog: React.FC<ConnectDialogProps> = ({ onConnect, onCance
             </div>
             <div className="space-y-1 flex-1">
               <label className="text-xs font-bold text-[rgba(255,255,255,0.5)] uppercase">Username</label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full bg-[rgba(0,0,0,0.3)] border border-[rgba(255,255,255,0.1)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#58a6ff] focus:shadow-[0_0_10px_rgba(88,166,255,0.3)] transition-all"
-                placeholder="Username"
-                required
-              />
+              <div className="flex space-x-1">
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="flex-1 bg-[rgba(0,0,0,0.3)] border border-[rgba(255,255,255,0.1)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#58a6ff] focus:shadow-[0_0_10px_rgba(88,166,255,0.3)] transition-all"
+                  placeholder="Username"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setUsername(generateRandomName())}
+                  className="px-2 bg-[rgba(0,0,0,0.3)] border border-[rgba(255,255,255,0.1)] rounded-lg hover:bg-[rgba(255,255,255,0.1)] transition-all"
+                  title="Generate random name"
+                >
+                  <RefreshCw size={14} className="text-[rgba(255,255,255,0.6)]" />
+                </button>
+              </div>
             </div>
           </div>
 

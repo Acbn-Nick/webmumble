@@ -454,7 +454,8 @@ async def handle_client(websocket):
                         try:
                             success = client.send_direct_message(video_json, int(target_id))
                             if not success:
-                                logger.warning(f"[Video] Failed to send to {target_id}")
+                                # Notify frontend that this subscriber is gone
+                                await client.send("subscriber_gone", {"userId": str(target_id)})
                         except (ValueError, TypeError) as e:
                             logger.error(f"[Video] Error sending to {target_id}: {e}")
 

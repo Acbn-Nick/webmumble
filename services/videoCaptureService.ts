@@ -211,6 +211,15 @@ export class VideoCaptureService {
     this.onSubscribersChange(this.subscribers);
   }
 
+  // Remove a subscriber who has disconnected
+  removeSubscriber(subscriberId: string): void {
+    if (this.subscribers.has(subscriberId)) {
+      console.log(`[VideoCapture] Removing disconnected subscriber: ${subscriberId}`);
+      this.subscribers.delete(subscriberId);
+      this.onSubscribersChange(this.subscribers);
+    }
+  }
+
   isSharing(): boolean {
     return this.isCapturing;
   }
