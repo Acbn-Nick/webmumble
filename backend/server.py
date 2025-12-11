@@ -196,13 +196,33 @@ class MumbleClient:
         """Called when a text message is received"""
         actor = message.actor
         sender = "Server"
+        sender_id = "0"
         if actor and self.mumble:
             user = self.mumble.users.get(actor)
             if user:
                 sender = user["name"]
+                sender_id = str(actor)
+
+        # Check if this is a video message
+        msg_content = message.message
+        try:
+            if msg_content.startswith('{') and '"_wm_video":true' in msg_content:
+                parsed = json.loads(msg_content)
+                if parsed.get('_wm_video'):
+                    # Forward video message with type 'video'
+                    self.send_sync("video", {
+                        "sender": sender,
+                        "senderId": sender_id,
+                        "data": parsed
+                    })
+                    return  # Don't process as regular chat
+        except (json.JSONDecodeError, KeyError):
+            pass  # Not a video message, process normally
+
+        # Regular chat message
         self.send_sync("chat", {
             "sender": sender,
-            "message": message.message
+            "message": msg_content
         })
 
     def _on_user_change(self, *args):
@@ -289,14 +309,13 @@ class MumbleClient:
             logger.error(f"Error sending audio: {e}")
 
     def send_chat(self, text: str, channel_id: Optional[int] = None):
-        """Send a text message"""
+        """Send a text message to a channel"""
         if not self.mumble or not self.connected:
             logger.warning("Cannot send chat: not connected")
             return
 
         # Check message length - Mumble has a limit (usually ~5000 bytes)
         msg_len = len(text.encode('utf-8'))
-        logger.info(f"Message length: {msg_len} bytes")
         if msg_len > 5000:
             logger.warning(f"Message too long ({msg_len} bytes), truncating or may fail")
             self.send_sync("log", {"text": f"Warning: Message too long ({msg_len} bytes), may fail", "level": "error"})
@@ -305,9 +324,7 @@ class MumbleClient:
             if channel_id is not None:
                 channel = self.mumble.channels.get(channel_id)
                 if channel:
-                    logger.info(f"Sending to channel {channel['name']} (id={channel_id})")
                     channel.send_text_message(text)
-                    logger.info("Message sent successfully")
                 else:
                     logger.warning(f"Channel {channel_id} not found")
             else:
@@ -315,14 +332,38 @@ class MumbleClient:
                 my_channel = self.mumble.users.myself["channel_id"]
                 channel = self.mumble.channels.get(my_channel)
                 if channel:
-                    logger.info(f"Sending to current channel {channel['name']} (id={my_channel})")
                     channel.send_text_message(text)
-                    logger.info("Message sent successfully")
                 else:
                     logger.warning(f"Current channel {my_channel} not found")
         except Exception as e:
             logger.error(f"Error sending chat: {e}", exc_info=True)
             self.send_sync("log", {"text": f"Failed to send message: {e}", "level": "error"})
+
+    def send_direct_message(self, text: str, user_session_id: int):
+        """Send a direct/private message to a specific user"""
+        if not self.mumble or not self.connected:
+            logger.warning("Cannot send direct message: not connected")
+            return False
+
+        try:
+            user = self.mumble.users.get(user_session_id)
+            if user:
+                user.send_text_message(text)
+                return True
+            else:
+                logger.warning(f"User session {user_session_id} not found")
+                return False
+        except Exception as e:
+            logger.error(f"Error sending direct message: {e}")
+            return False
+
+    def send_to_multiple_users(self, text: str, user_session_ids: list):
+        """Send a message to multiple specific users"""
+        if not self.mumble or not self.connected:
+            return
+
+        for session_id in user_session_ids:
+            self.send_direct_message(text, session_id)
 
     def disconnect(self):
         """Disconnect from Mumble server"""
@@ -379,6 +420,28 @@ async def handle_client(websocket):
 
                 elif msg_type == "disconnect":
                     client.disconnect()
+
+                elif msg_type == "video_channel":
+                    # Send video announcement to channel (start/stop streaming)
+                    video_data = payload.get("data", {})
+                    video_json = json.dumps(video_data)
+                    channel_id = payload.get("channelId")
+                    if channel_id is not None and channel_id != "":
+                        channel_id = int(channel_id)
+                    else:
+                        channel_id = None
+                    client.send_chat(video_json, channel_id)
+
+                elif msg_type == "video_direct":
+                    # Send video frame/message to specific user(s)
+                    video_data = payload.get("data", {})
+                    video_json = json.dumps(video_data)
+                    target_ids = payload.get("targetIds", [])
+                    for target_id in target_ids:
+                        try:
+                            client.send_direct_message(video_json, int(target_id))
+                        except (ValueError, TypeError):
+                            pass
 
             except json.JSONDecodeError:
                 logger.error("Invalid JSON received")

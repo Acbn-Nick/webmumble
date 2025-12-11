@@ -44,3 +44,82 @@ export type PCMChunk = {
   data: string; // base64
   sampleRate: number;
 };
+
+// Video Streaming Types
+export interface VideoStartMessage {
+  _wm_video: true;
+  type: 'video_start';
+  userId: string;
+  username: string;
+  timestamp: number;
+  fps: number;
+  quality: number;
+}
+
+export interface VideoFrameMessage {
+  _wm_video: true;
+  type: 'video_frame';
+  userId: string;
+  frameId: number;
+  fragmentIndex: number;
+  fragmentCount: number;
+  data: string;
+  timestamp: number;
+}
+
+export interface VideoStopMessage {
+  _wm_video: true;
+  type: 'video_stop';
+  userId: string;
+  timestamp: number;
+}
+
+// Subscription messages - sent as direct messages between peers
+export interface VideoSubscribeMessage {
+  _wm_video: true;
+  type: 'video_subscribe';
+  subscriberId: string;
+  subscriberName: string;
+  streamerId: string;
+  timestamp: number;
+}
+
+export interface VideoUnsubscribeMessage {
+  _wm_video: true;
+  type: 'video_unsubscribe';
+  subscriberId: string;
+  streamerId: string;
+  timestamp: number;
+}
+
+// Announcement sent to channel when someone starts/stops streaming
+export interface VideoAnnounceMessage {
+  _wm_video: true;
+  type: 'video_announce';
+  userId: string;
+  username: string;
+  streaming: boolean;
+  timestamp: number;
+}
+
+export type VideoMessage =
+  | VideoStartMessage
+  | VideoFrameMessage
+  | VideoStopMessage
+  | VideoSubscribeMessage
+  | VideoUnsubscribeMessage
+  | VideoAnnounceMessage;
+
+export interface VideoStream {
+  userId: string;
+  username: string;
+  lastFrameTime: number;
+  currentFrameUrl: string | null;
+  isActive: boolean;
+}
+
+export interface AvailableStream {
+  userId: string;
+  username: string;
+  isSubscribed: boolean;
+}

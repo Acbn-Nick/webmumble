@@ -1,6 +1,6 @@
 import React from 'react';
 import { ConnectionState } from '../types';
-import { Mic, MicOff, Headphones, Globe, Settings, Server, Link2, Link2Off } from 'lucide-react';
+import { Mic, MicOff, Headphones, Globe, Settings, Server, Link2, Link2Off, MonitorUp, MonitorOff, Video } from 'lucide-react';
 
 interface ToolbarProps {
   connectionState: ConnectionState;
@@ -11,6 +11,11 @@ interface ToolbarProps {
   isDeafened: boolean;
   toggleDeafen: () => void;
   serverName?: string;
+  isScreenSharing: boolean;
+  onToggleScreenShare: () => void;
+  hasVideoContent: boolean;
+  showVideoPanel: boolean;
+  onToggleVideoPanel: () => void;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -21,7 +26,12 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   toggleMute,
   isDeafened,
   toggleDeafen,
-  serverName
+  serverName,
+  isScreenSharing,
+  onToggleScreenShare,
+  hasVideoContent,
+  showVideoPanel,
+  onToggleVideoPanel,
 }) => {
   return (
     <div className="h-12 bg-[rgba(255,255,255,0.05)] backdrop-blur-md border-b border-[rgba(255,255,255,0.1)] flex items-center px-2 shadow-sm select-none">
@@ -68,6 +78,35 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         >
             <Headphones size={18} />
         </button>
+
+        {/* Screen Share */}
+        <button
+            onClick={onToggleScreenShare}
+            disabled={connectionState !== ConnectionState.CONNECTED}
+            className={`p-1.5 rounded-lg border transition-all ${
+              isScreenSharing
+                ? 'bg-[rgba(63,185,80,0.2)] text-[#3fb950] border-[rgba(63,185,80,0.3)] shadow-[0_0_10px_rgba(63,185,80,0.3)]'
+                : 'hover:bg-[rgba(255,255,255,0.1)] text-[rgba(255,255,255,0.8)] border-transparent disabled:opacity-30'
+            }`}
+            title={isScreenSharing ? "Stop Screen Share" : "Start Screen Share"}
+        >
+            {isScreenSharing ? <MonitorOff size={18} /> : <MonitorUp size={18} />}
+        </button>
+
+        {/* Video Panel Toggle */}
+        {hasVideoContent && (
+          <button
+              onClick={onToggleVideoPanel}
+              className={`p-1.5 rounded-lg border transition-all ${
+                showVideoPanel
+                  ? 'bg-[rgba(88,166,255,0.2)] text-[#58a6ff] border-[rgba(88,166,255,0.3)]'
+                  : 'hover:bg-[rgba(255,255,255,0.1)] text-[rgba(255,255,255,0.8)] border-transparent'
+              }`}
+              title={showVideoPanel ? "Hide Video Panel" : "Show Video Panel"}
+          >
+              <Video size={18} />
+          </button>
+        )}
       </div>
 
       <div className="ml-auto flex items-center text-xs text-[rgba(255,255,255,0.5)]">

@@ -5,10 +5,13 @@ import { Toolbar } from './components/Toolbar';
 import { ConnectDialog } from './components/ConnectDialog';
 import { ChatInput } from './components/ChatInput';
 import { AudioSettingsMenu } from './components/AudioSettingsMenu';
-import { Channel, ConnectionState, LogMessage, User, ServerConfig } from './types';
+import { VideoPanel } from './components/VideoPanel';
+import { Channel, ConnectionState, LogMessage, User, ServerConfig, VideoStream, AvailableStream, VideoMessage, VideoSubscribeMessage, VideoUnsubscribeMessage } from './types';
 import { MumbleSocketService } from './services/mumbleSocketService';
 import { AudioPlaybackService } from './services/audioPlaybackService';
 import { AudioCaptureService } from './services/audioCaptureService';
+import { VideoCaptureService } from './services/videoCaptureService';
+import { VideoPlaybackService } from './services/videoPlaybackService';
 
 const App: React.FC = () => {
   const [connectionState, setConnectionState] = useState<ConnectionState>(ConnectionState.DISCONNECTED);
@@ -26,6 +29,7 @@ const App: React.FC = () => {
 
   const [logs, setLogs] = useState<LogMessage[]>([]);
   const [currentChannelId, setCurrentChannelId] = useState<string>('0');
+  const currentChannelIdRef = useRef<string>('0');
   const [isMuted, setIsMuted] = useState(true); // Start muted by default
   const [isDeafened, setIsDeafened] = useState(false);
 
@@ -38,10 +42,19 @@ const App: React.FC = () => {
   });
   const isPttActive = useRef(false);
 
+  // Video streaming state
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [videoStreams, setVideoStreams] = useState<Map<string, VideoStream>>(new Map());
+  const [availableStreams, setAvailableStreams] = useState<Map<string, AvailableStream>>(new Map());
+  const [showVideoPanel, setShowVideoPanel] = useState(false);
+  const [subscriberCount, setSubscriberCount] = useState(0);
+
   // Service References
   const socketService = useRef<MumbleSocketService | null>(null);
   const audioPlayback = useRef<AudioPlaybackService | null>(null);
   const audioCapture = useRef<AudioCaptureService | null>(null);
+  const videoCapture = useRef<VideoCaptureService | null>(null);
+  const videoPlayback = useRef<VideoPlaybackService | null>(null);
   const initialized = useRef(false);
 
   // Helper to add logs
@@ -69,6 +82,18 @@ const App: React.FC = () => {
       });
       return updateChannel(prev);
     });
+  }, []);
+
+  // Find self user in channel tree
+  const findSelfUser = useCallback((channel: Channel): User | null => {
+    for (const user of channel.users) {
+      if (user.isSelf) return user;
+    }
+    for (const child of channel.children) {
+      const found = findSelfUser(child);
+      if (found) return found;
+    }
+    return null;
   }, []);
 
   // Handle incoming messages from Backend
@@ -101,6 +126,23 @@ const App: React.FC = () => {
            audioPlayback.current.handleAudioPacket(payload);
          }
          break;
+
+      case 'video':
+         // Handle incoming video message
+         if (payload.data && videoPlayback.current) {
+           const videoMsg = payload.data as VideoMessage;
+
+           // If this is a subscribe/unsubscribe message for us (we're streaming)
+           if (videoMsg.type === 'video_subscribe' && videoCapture.current?.isSharing()) {
+             videoCapture.current.handleSubscribe(videoMsg);
+           } else if (videoMsg.type === 'video_unsubscribe' && videoCapture.current?.isSharing()) {
+             videoCapture.current.handleUnsubscribe(videoMsg);
+           } else {
+             // All other video messages go to playback service
+             videoPlayback.current.handleVideoMessage(videoMsg);
+           }
+         }
+         break;
     }
   }, [addLog]);
 
@@ -130,11 +172,56 @@ const App: React.FC = () => {
       }
     });
 
+    // Initialize video capture (sends video to subscribers via direct messages)
+    videoCapture.current = new VideoCaptureService(
+      // onSendChannel - send announcement to channel
+      (msg) => {
+        if (socketService.current) {
+          socketService.current.send('video_channel', { data: msg, channelId: currentChannelIdRef.current });
+        }
+      },
+      // onSendDirect - send frames to specific subscribers
+      (msg, targetIds) => {
+        if (socketService.current && targetIds.length > 0) {
+          socketService.current.send('video_direct', { data: msg, targetIds });
+        }
+      },
+      // onSubscribersChange
+      (subscribers) => {
+        setSubscriberCount(subscribers.size);
+      }
+    );
+
+    // Initialize video playback
+    videoPlayback.current = new VideoPlaybackService(
+      // onStreamUpdate
+      (streams) => {
+        setVideoStreams(new Map(streams));
+      },
+      // onAvailableStreamsUpdate
+      (streams) => {
+        setAvailableStreams(new Map(streams));
+        // Auto-show panel when streams become available
+        if (streams.size > 0) {
+          setShowVideoPanel(true);
+        }
+      },
+      // onSendSubscribe - send subscription messages via direct message to streamer
+      (msg) => {
+        if (socketService.current) {
+          const targetId = msg.type === 'video_subscribe' ? msg.streamerId : msg.streamerId;
+          socketService.current.send('video_direct', { data: msg, targetIds: [targetId] });
+        }
+      }
+    );
+
     // Cleanup
     return () => {
         socketService.current?.disconnect();
         audioPlayback.current?.destroy();
         audioCapture.current?.destroy();
+        videoCapture.current?.destroy();
+        videoPlayback.current?.destroy();
     };
   }, [addLog, handleBackendMessage, handleDisconnect, updateUserTalking]);
 
@@ -266,11 +353,66 @@ const App: React.FC = () => {
       if (socketService.current && connectionState === ConnectionState.CONNECTED) {
           socketService.current.send('join_channel', { channelId });
           setCurrentChannelId(channelId);
+          currentChannelIdRef.current = channelId;
       } else {
           // Not connected, just select for UI
           setCurrentChannelId(channelId);
+          currentChannelIdRef.current = channelId;
       }
   };
+
+  // Screen share functions
+  const startScreenShare = async () => {
+    if (!socketService.current || connectionState !== ConnectionState.CONNECTED) return;
+
+    const selfUser = findSelfUser(rootChannel);
+    if (!selfUser) {
+      addLog("Cannot start screen share: user not found", 'error');
+      return;
+    }
+
+    // Set user info for video playback (so it can ignore our own frames)
+    videoPlayback.current?.setMyInfo(selfUser.id, selfUser.name);
+
+    const success = await videoCapture.current?.startCapture(selfUser.id, selfUser.name);
+    if (success) {
+      setIsScreenSharing(true);
+      addLog("Screen sharing started", 'info');
+    } else {
+      addLog("Failed to start screen sharing", 'error');
+    }
+  };
+
+  const stopScreenShare = () => {
+    videoCapture.current?.stopCapture();
+    setIsScreenSharing(false);
+    setSubscriberCount(0);
+    addLog("Screen sharing stopped", 'info');
+  };
+
+  const toggleScreenShare = () => {
+    if (isScreenSharing) {
+      stopScreenShare();
+    } else {
+      startScreenShare();
+    }
+  };
+
+  // Video subscription handlers
+  const handleVideoSubscribe = (streamerId: string) => {
+    const selfUser = findSelfUser(rootChannel);
+    if (selfUser) {
+      videoPlayback.current?.setMyInfo(selfUser.id, selfUser.name);
+    }
+    videoPlayback.current?.subscribe(streamerId);
+  };
+
+  const handleVideoUnsubscribe = (streamerId: string) => {
+    videoPlayback.current?.unsubscribe(streamerId);
+  };
+
+  // Check if there's any video content to show
+  const hasVideoContent = isScreenSharing || availableStreams.size > 0 || videoStreams.size > 0;
 
   return (
     <div className="flex flex-col h-screen w-full bg-transparent text-[#f0f0f5] overflow-hidden">
@@ -296,9 +438,9 @@ const App: React.FC = () => {
         <span>Help</span>
       </div>
 
-      <Toolbar 
-        connectionState={connectionState} 
-        onConnect={onToolbarConnectClick} 
+      <Toolbar
+        connectionState={connectionState}
+        onConnect={onToolbarConnectClick}
         onDisconnect={onToolbarDisconnectClick}
         isMuted={isMuted}
         toggleMute={() => {
@@ -313,6 +455,11 @@ const App: React.FC = () => {
           audioPlayback.current?.setMuted(newDeafened);
         }}
         serverName={serverConfig?.address}
+        isScreenSharing={isScreenSharing}
+        onToggleScreenShare={toggleScreenShare}
+        hasVideoContent={hasVideoContent}
+        showVideoPanel={showVideoPanel}
+        onToggleVideoPanel={() => setShowVideoPanel(!showVideoPanel)}
       />
 
       <div className="flex flex-1 overflow-hidden">
@@ -330,6 +477,19 @@ const App: React.FC = () => {
         {/* Right Side: Log / Chat */}
         <div className="flex-1 flex flex-col bg-[rgba(0,0,0,0.2)] backdrop-blur-md">
             <LogWindow logs={logs} />
+
+            {/* Video Panel */}
+            {showVideoPanel && (
+              <VideoPanel
+                streams={videoStreams}
+                availableStreams={availableStreams}
+                isStreaming={isScreenSharing}
+                subscriberCount={subscriberCount}
+                onSubscribe={handleVideoSubscribe}
+                onUnsubscribe={handleVideoUnsubscribe}
+                onClose={() => setShowVideoPanel(false)}
+              />
+            )}
 
             {/* Chat Input Area */}
             <ChatInput
