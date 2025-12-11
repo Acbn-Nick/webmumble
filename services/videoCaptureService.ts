@@ -21,9 +21,9 @@ export interface VideoCaptureConfig {
 
 const DEFAULT_CONFIG: VideoCaptureConfig = {
   fps: 1,          // 1 FPS - very slow to ensure fragments arrive before next frame
-  quality: 0.15,   // Very low quality to minimize fragments
-  maxWidth: 320,
-  maxHeight: 180,
+  quality: 0.1,    // Ultra low quality to fit in single fragment
+  maxWidth: 240,
+  maxHeight: 135,
 };
 
 export class VideoCaptureService {
