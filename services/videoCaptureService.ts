@@ -32,11 +32,14 @@ export class VideoCaptureService {
   private canvas: HTMLCanvasElement | null = null;
   private ctx: CanvasRenderingContext2D | null = null;
   private captureInterval: number | null = null;
+  private announceInterval: number | null = null;
   private config: VideoCaptureConfig;
   private frameId: number = 0;
   private isCapturing: boolean = false;
   private userId: string = '';
   private username: string = '';
+
+  private readonly ANNOUNCE_INTERVAL_MS = 5000; // Re-announce every 5 seconds
 
   // Subscription tracking
   private subscribers: Set<string> = new Set();
@@ -87,14 +90,13 @@ export class VideoCaptureService {
       };
 
       // Send announcement to channel
-      this.onSendChannel({
-        _wm_video: true,
-        type: 'video_announce',
-        userId: this.userId,
-        username: this.username,
-        streaming: true,
-        timestamp: Date.now(),
-      });
+      this.sendAnnouncement(true);
+
+      // Start periodic re-announcements for latecomers
+      this.announceInterval = window.setInterval(
+        () => this.sendAnnouncement(true),
+        this.ANNOUNCE_INTERVAL_MS
+      );
 
       // Start capture loop
       this.isCapturing = true;
@@ -120,6 +122,11 @@ export class VideoCaptureService {
       this.captureInterval = null;
     }
 
+    if (this.announceInterval) {
+      clearInterval(this.announceInterval);
+      this.announceInterval = null;
+    }
+
     if (this.mediaStream) {
       this.mediaStream.getTracks().forEach((track) => track.stop());
       this.mediaStream = null;
@@ -136,15 +143,8 @@ export class VideoCaptureService {
       this.onSendDirect(stopMsg, Array.from(this.subscribers));
     }
 
-    // Send announcement to channel
-    this.onSendChannel({
-      _wm_video: true,
-      type: 'video_announce',
-      userId: this.userId,
-      username: this.username,
-      streaming: false,
-      timestamp: Date.now(),
-    });
+    // Send stop announcement to channel
+    this.sendAnnouncement(false);
 
     // Clear subscribers
     this.subscribers.clear();
@@ -153,6 +153,17 @@ export class VideoCaptureService {
     this.videoElement = null;
     this.canvas = null;
     this.ctx = null;
+  }
+
+  private sendAnnouncement(streaming: boolean): void {
+    this.onSendChannel({
+      _wm_video: true,
+      type: 'video_announce',
+      userId: this.userId,
+      username: this.username,
+      streaming,
+      timestamp: Date.now(),
+    });
   }
 
   // Handle incoming subscription from a viewer
