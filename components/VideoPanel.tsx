@@ -23,10 +23,16 @@ export const VideoPanel: React.FC<VideoPanelProps> = ({
 }) => {
   const [expandedStream, setExpandedStream] = useState<string | null>(null);
 
-  const activeStreams = Array.from(streams.values()).filter(
+  const allStreams = Array.from(streams.values());
+  const activeStreams = allStreams.filter(
     (s) => s.isActive && s.currentFrameUrl
   );
   const availableList = Array.from(availableStreams.values());
+
+  console.log('[VideoPanel] render - streams:', streams.size, 'allStreams:', allStreams.length, 'activeStreams:', activeStreams.length, 'available:', availableList.length);
+  if (allStreams.length > 0) {
+    console.log('[VideoPanel] First stream:', allStreams[0]);
+  }
 
   const gridClass =
     activeStreams.length === 1

@@ -202,6 +202,7 @@ const App: React.FC = () => {
     videoPlayback.current = new VideoPlaybackService(
       // onStreamUpdate
       (streams) => {
+        console.log('[App] onStreamUpdate called, streams:', streams.size);
         setVideoStreams(new Map(streams));
       },
       // onAvailableStreamsUpdate
@@ -419,8 +420,10 @@ const App: React.FC = () => {
 
   // Watch stream from channel tree - subscribes and opens video panel
   const handleWatchStream = (userId: string) => {
+    console.log('[App] handleWatchStream called for userId:', userId);
     handleVideoSubscribe(userId);
     setShowVideoPanel(true);
+    console.log('[App] showVideoPanel set to true');
   };
 
   // Check if there's any video content to show

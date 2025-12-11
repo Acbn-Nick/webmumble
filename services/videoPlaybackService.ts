@@ -126,9 +126,11 @@ export class VideoPlaybackService {
     }
 
     buffer.fragments.set(msg.fragmentIndex, msg.data);
+    console.log(`[VideoPlayback] Frame ${msg.frameId} fragment ${msg.fragmentIndex + 1}/${msg.fragmentCount}, have ${buffer.fragments.size}`);
 
     // Check if frame is complete
     if (buffer.fragments.size === buffer.totalFragments) {
+      console.log(`[VideoPlayback] Frame ${msg.frameId} complete, reassembling...`);
       // Reassemble frame
       const fragments: string[] = [];
       for (let i = 0; i < buffer.totalFragments; i++) {
@@ -155,6 +157,7 @@ export class VideoPlaybackService {
       stream.currentFrameUrl = imageUrl;
       stream.lastFrameTime = Date.now();
       stream.isActive = true;
+      console.log(`[VideoPlayback] Frame complete, updating stream. Streams count: ${this.streams.size}, hasUrl: ${!!stream.currentFrameUrl}`);
       this.onStreamUpdate(this.streams);
 
       // Clean up buffer
