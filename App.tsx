@@ -411,6 +411,12 @@ const App: React.FC = () => {
     videoPlayback.current?.unsubscribe(streamerId);
   };
 
+  // Watch stream from channel tree - subscribes and opens video panel
+  const handleWatchStream = (userId: string) => {
+    handleVideoSubscribe(userId);
+    setShowVideoPanel(true);
+  };
+
   // Check if there's any video content to show
   const hasVideoContent = isScreenSharing || availableStreams.size > 0 || videoStreams.size > 0;
 
@@ -470,6 +476,8 @@ const App: React.FC = () => {
                 channel={rootChannel}
                 onChannelSelect={joinChannel}
                 selectedChannelId={currentChannelId}
+                streamingUsers={availableStreams}
+                onWatchStream={handleWatchStream}
              />
            </div>
         </div>

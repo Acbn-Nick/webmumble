@@ -1,14 +1,22 @@
 import React from 'react';
-import { Channel, User } from '../types';
-import { Folder, FolderOpen, Mic, MicOff, Headphones, Volume2, User as UserIcon } from 'lucide-react';
+import { Channel, User, AvailableStream } from '../types';
+import { Folder, FolderOpen, Mic, MicOff, Headphones, Volume2, User as UserIcon, MonitorPlay } from 'lucide-react';
 
 interface ChannelTreeProps {
   channel: Channel;
   onChannelSelect: (channelId: string) => void;
   selectedChannelId: string;
+  streamingUsers: Map<string, AvailableStream>;
+  onWatchStream: (userId: string) => void;
 }
 
-export const ChannelTree: React.FC<ChannelTreeProps> = ({ channel, onChannelSelect, selectedChannelId }) => {
+export const ChannelTree: React.FC<ChannelTreeProps> = ({
+  channel,
+  onChannelSelect,
+  selectedChannelId,
+  streamingUsers,
+  onWatchStream
+}) => {
   const isSelected = channel.id === selectedChannelId;
 
   return (
@@ -31,18 +39,25 @@ export const ChannelTree: React.FC<ChannelTreeProps> = ({ channel, onChannelSele
           {/* Users in this channel */}
           <div className="pl-4">
             {channel.users.map(user => (
-              <UserItem key={user.id} user={user} />
+              <UserItem
+                key={user.id}
+                user={user}
+                isStreaming={streamingUsers.has(user.id)}
+                onWatchStream={() => onWatchStream(user.id)}
+              />
             ))}
           </div>
 
           {/* Child Channels */}
           <div>
             {channel.children.map(child => (
-              <ChannelTree 
-                key={child.id} 
-                channel={child} 
+              <ChannelTree
+                key={child.id}
+                channel={child}
                 onChannelSelect={onChannelSelect}
                 selectedChannelId={selectedChannelId}
+                streamingUsers={streamingUsers}
+                onWatchStream={onWatchStream}
               />
             ))}
           </div>
@@ -52,7 +67,13 @@ export const ChannelTree: React.FC<ChannelTreeProps> = ({ channel, onChannelSele
   );
 };
 
-const UserItem: React.FC<{ user: User }> = ({ user }) => {
+interface UserItemProps {
+  user: User;
+  isStreaming: boolean;
+  onWatchStream: () => void;
+}
+
+const UserItem: React.FC<UserItemProps> = ({ user, isStreaming, onWatchStream }) => {
   // Determine Lip/User icon color
   let iconColor = "text-[rgba(255,255,255,0.5)]";
   if (user.isTalking) iconColor = "text-[#3fb950] drop-shadow-[0_0_8px_rgba(63,185,80,0.6)]";
@@ -67,9 +88,25 @@ const UserItem: React.FC<{ user: User }> = ({ user }) => {
         {user.name}
       </span>
 
-      <div className="ml-auto flex space-x-1 opacity-70">
-        {user.isMuted && <MicOff size={10} className="text-[#f85149]" />}
-        {user.isDeafened && <Headphones size={10} className="text-[#f85149]" />}
+      <div className="ml-auto flex items-center space-x-1">
+        {/* Streaming indicator - clickable to watch */}
+        {isStreaming && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onWatchStream();
+            }}
+            className="p-1 rounded hover:bg-[rgba(63,185,80,0.2)] transition-all group"
+            title={`Watch ${user.name}'s screen`}
+          >
+            <MonitorPlay
+              size={14}
+              className="text-[#3fb950] group-hover:drop-shadow-[0_0_8px_rgba(63,185,80,0.6)] transition-all"
+            />
+          </button>
+        )}
+        {user.isMuted && <MicOff size={10} className="text-[#f85149] opacity-70" />}
+        {user.isDeafened && <Headphones size={10} className="text-[#f85149] opacity-70" />}
       </div>
     </div>
   );
