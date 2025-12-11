@@ -57,6 +57,7 @@ export class VideoPlaybackService {
   }
 
   handleVideoMessage(message: VideoMessage): void {
+    console.log('[VideoPlayback] handleVideoMessage:', message.type);
     switch (message.type) {
       case 'video_announce':
         this.handleAnnounce(message);
@@ -175,7 +176,11 @@ export class VideoPlaybackService {
   }
 
   subscribe(streamerId: string): void {
-    if (this.subscriptions.has(streamerId)) return;
+    console.log('[VideoPlayback] subscribe called for streamerId:', streamerId, 'myUserId:', this.myUserId);
+    if (this.subscriptions.has(streamerId)) {
+      console.log('[VideoPlayback] Already subscribed');
+      return;
+    }
 
     this.subscriptions.add(streamerId);
 
@@ -195,6 +200,7 @@ export class VideoPlaybackService {
       streamerId: streamerId,
       timestamp: Date.now(),
     };
+    console.log('[VideoPlayback] Sending subscribe message:', msg);
     this.onSendSubscribe(msg);
   }
 

@@ -157,10 +157,15 @@ export class VideoCaptureService {
 
   // Handle incoming subscription from a viewer
   handleSubscribe(msg: VideoSubscribeMessage): void {
-    if (msg.streamerId !== this.userId) return;
+    console.log('[VideoCapture] handleSubscribe called, streamerId:', msg.streamerId, 'myId:', this.userId);
+    if (msg.streamerId !== this.userId) {
+      console.log('[VideoCapture] Ignoring subscribe - streamerId mismatch');
+      return;
+    }
 
     this.subscribers.add(msg.subscriberId);
     this.onSubscribersChange(this.subscribers);
+    console.log('[VideoCapture] Added subscriber:', msg.subscriberId, 'total:', this.subscribers.size);
 
     // Send start message to the new subscriber
     const startMsg: VideoStartMessage = {
@@ -173,6 +178,7 @@ export class VideoCaptureService {
       quality: this.config.quality,
     };
     this.onSendDirect(startMsg, [msg.subscriberId]);
+    console.log('[VideoCapture] Sent video_start to subscriber');
   }
 
   // Handle unsubscription from a viewer
@@ -219,6 +225,8 @@ export class VideoCaptureService {
     ) {
       return;
     }
+
+    console.log('[VideoCapture] Capturing frame for', this.subscribers.size, 'subscribers');
 
     const video = this.videoElement;
 

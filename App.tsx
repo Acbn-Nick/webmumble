@@ -129,15 +129,21 @@ const App: React.FC = () => {
 
       case 'video':
          // Handle incoming video message
-         if (payload.data && videoPlayback.current) {
+         if (payload.data) {
            const videoMsg = payload.data as VideoMessage;
+           console.log('[Video] Received:', videoMsg.type, 'from', (videoMsg as any).userId || (videoMsg as any).subscriberId);
 
            // If this is a subscribe/unsubscribe message for us (we're streaming)
-           if (videoMsg.type === 'video_subscribe' && videoCapture.current?.isSharing()) {
-             videoCapture.current.handleSubscribe(videoMsg);
-           } else if (videoMsg.type === 'video_unsubscribe' && videoCapture.current?.isSharing()) {
-             videoCapture.current.handleUnsubscribe(videoMsg);
-           } else {
+           if (videoMsg.type === 'video_subscribe') {
+             console.log('[Video] Subscribe request, isSharing:', videoCapture.current?.isSharing());
+             if (videoCapture.current?.isSharing()) {
+               videoCapture.current.handleSubscribe(videoMsg);
+             }
+           } else if (videoMsg.type === 'video_unsubscribe') {
+             if (videoCapture.current?.isSharing()) {
+               videoCapture.current.handleUnsubscribe(videoMsg);
+             }
+           } else if (videoPlayback.current) {
              // All other video messages go to playback service
              videoPlayback.current.handleVideoMessage(videoMsg);
            }
