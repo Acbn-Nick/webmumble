@@ -21,14 +21,14 @@ export interface VideoCaptureConfig {
 }
 
 const DEFAULT_CONFIG: VideoCaptureConfig = {
-  fps: 2,          // Low FPS for bandwidth
-  quality: 0.3,    // Balance quality/size
-  maxWidth: 640,
-  maxHeight: 360,
+  fps: 1,          // 1 FPS - must complete before next frame
+  quality: 0.15,   // Very low quality
+  maxWidth: 320,
+  maxHeight: 180,
 };
 
 const TILE_SIZE = 32; // Small tiles for granular updates
-const KEYFRAME_INTERVAL = 60; // Less frequent keyframes
+const KEYFRAME_INTERVAL = 30; // Keyframe every 30 frames
 const TILE_CHANGE_THRESHOLD = 30; // Sensitive change detection
 
 export class VideoCaptureService {
