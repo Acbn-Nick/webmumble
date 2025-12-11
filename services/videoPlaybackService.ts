@@ -21,8 +21,8 @@ interface FrameBuffer {
 }
 
 interface UserFrameState {
-  latestFrameId: number;
-  currentBuffer: FrameBuffer | null;
+  lastCompletedFrameId: number;
+  frameBuffers: Map<number, FrameBuffer>;  // Multiple buffers keyed by frameId
 }
 
 export class VideoPlaybackService {
@@ -127,79 +127,72 @@ export class VideoPlaybackService {
     // Get or create per-user frame state
     let state = this.userFrameState.get(msg.userId);
     if (!state) {
-      state = { latestFrameId: -1, currentBuffer: null };
+      state = { lastCompletedFrameId: -1, frameBuffers: new Map() };
       this.userFrameState.set(msg.userId, state);
     }
 
-    console.log(`[VideoPlayback] Frame ${msg.frameId} frag ${msg.fragmentIndex+1}/${msg.fragmentCount}, latestFrameId: ${state.latestFrameId}`);
+    console.log(`[VideoPlayback] Frame ${msg.frameId} frag ${msg.fragmentIndex+1}/${msg.fragmentCount}, lastCompleted: ${state.lastCompletedFrameId}`);
 
-    // If this fragment is from an older frame, ignore it
-    if (msg.frameId < state.latestFrameId) {
-      console.log(`[VideoPlayback] Ignoring old frame ${msg.frameId} < ${state.latestFrameId}`);
+    // Ignore fragments from frames older than our last completed frame
+    if (msg.frameId <= state.lastCompletedFrameId) {
+      console.log(`[VideoPlayback] Ignoring old frame ${msg.frameId} <= ${state.lastCompletedFrameId}`);
       return;
     }
 
-    // If this is a newer frame, discard old buffer and start fresh
-    if (msg.frameId > state.latestFrameId) {
-      console.log(`[VideoPlayback] New frame ${msg.frameId}, discarding old buffer`);
-      state.latestFrameId = msg.frameId;
-      state.currentBuffer = {
+    // Get or create buffer for this specific frame
+    let buffer = state.frameBuffers.get(msg.frameId);
+    if (!buffer) {
+      buffer = {
         fragments: new Map(),
         totalFragments: msg.fragmentCount,
         timestamp: Date.now(),
       };
+      state.frameBuffers.set(msg.frameId, buffer);
+      console.log(`[VideoPlayback] Created buffer for frame ${msg.frameId}`);
     }
 
-    // Safety check: if buffer is null but we're on the current frame, recreate it
-    // This can happen if cleanup ran between fragments
-    if (!state.currentBuffer && msg.frameId === state.latestFrameId) {
-      console.log(`[VideoPlayback] Recreating buffer for frame ${msg.frameId}`);
-      state.currentBuffer = {
-        fragments: new Map(),
-        totalFragments: msg.fragmentCount,
-        timestamp: Date.now(),
-      };
-    }
+    // Add fragment to this frame's buffer
+    buffer.fragments.set(msg.fragmentIndex, msg.data);
+    console.log(`[VideoPlayback] Frame ${msg.frameId} now has ${buffer.fragments.size}/${buffer.totalFragments} fragments`);
 
-    // Add fragment to current buffer
-    if (state.currentBuffer) {
-      state.currentBuffer.fragments.set(msg.fragmentIndex, msg.data);
-      console.log(`[VideoPlayback] Buffer now has ${state.currentBuffer.fragments.size}/${state.currentBuffer.totalFragments} fragments`);
+    // Check if frame is complete
+    if (buffer.fragments.size === buffer.totalFragments) {
+      console.log(`[VideoPlayback] Frame ${msg.frameId} COMPLETE!`);
 
-      // Check if frame is complete
-      if (state.currentBuffer.fragments.size === state.currentBuffer.totalFragments) {
-        console.log(`[VideoPlayback] Frame ${msg.frameId} complete (${msg.fragmentCount} fragments)`);
+      // Reassemble frame
+      const fragments: string[] = [];
+      for (let i = 0; i < buffer.totalFragments; i++) {
+        const frag = buffer.fragments.get(i);
+        if (frag) fragments.push(frag);
+      }
+      const fullBase64 = fragments.join('');
+      const imageUrl = `data:image/jpeg;base64,${fullBase64}`;
 
-        // Reassemble frame
-        const fragments: string[] = [];
-        for (let i = 0; i < state.currentBuffer.totalFragments; i++) {
-          const frag = state.currentBuffer.fragments.get(i);
-          if (frag) fragments.push(frag);
+      // Update stream
+      let stream = this.streams.get(msg.userId);
+      if (!stream) {
+        stream = {
+          userId: msg.userId,
+          username: 'Unknown',
+          lastFrameTime: Date.now(),
+          currentFrameUrl: null,
+          isActive: true,
+        };
+        this.streams.set(msg.userId, stream);
+      }
+
+      stream.currentFrameUrl = imageUrl;
+      stream.lastFrameTime = Date.now();
+      stream.isActive = true;
+      console.log(`[VideoPlayback] Displaying frame ${msg.frameId}, URL length: ${imageUrl.length}`);
+      this.onStreamUpdate(this.streams);
+
+      // Mark this frame as completed and clean up older buffers
+      state.lastCompletedFrameId = msg.frameId;
+      for (const [frameId] of state.frameBuffers) {
+        if (frameId <= msg.frameId) {
+          state.frameBuffers.delete(frameId);
         }
-        const fullBase64 = fragments.join('');
-        const imageUrl = `data:image/jpeg;base64,${fullBase64}`;
-
-        // Update stream
-        let stream = this.streams.get(msg.userId);
-        if (!stream) {
-          stream = {
-            userId: msg.userId,
-            username: 'Unknown',
-            lastFrameTime: Date.now(),
-            currentFrameUrl: null,
-            isActive: true,
-          };
-          this.streams.set(msg.userId, stream);
-        }
-
-        stream.currentFrameUrl = imageUrl;
-        stream.lastFrameTime = Date.now();
-        stream.isActive = true;
-        console.log(`[VideoPlayback] Calling onStreamUpdate with ${this.streams.size} streams, frame URL length: ${imageUrl.length}`);
-        this.onStreamUpdate(this.streams);
-
-        // Clear buffer (will be recreated for next frame)
-        state.currentBuffer = null;
       }
     }
   }
@@ -288,10 +281,12 @@ export class VideoPlaybackService {
   private cleanup(): void {
     const now = Date.now();
 
-    // Clean up stale user frame states
+    // Clean up stale frame buffers
     for (const [userId, state] of this.userFrameState) {
-      if (state.currentBuffer && now - state.currentBuffer.timestamp > this.FRAME_TIMEOUT) {
-        state.currentBuffer = null;
+      for (const [frameId, buffer] of state.frameBuffers) {
+        if (now - buffer.timestamp > this.FRAME_TIMEOUT) {
+          state.frameBuffers.delete(frameId);
+        }
       }
     }
 
