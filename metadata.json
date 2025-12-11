@@ -1,0 +1,7 @@
+{
+  "name": "WebMumble (Gemini Edition)",
+  "description": "A Mumble-inspired VoIP client running in the browser. Due to browser security restrictions on raw TCP/UDP sockets, this demo connects to the Gemini Live API to simulate a voice chat server experience with an AI participant.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
