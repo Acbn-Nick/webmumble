@@ -206,7 +206,7 @@ class MumbleClient:
         # Check if this is a video message
         msg_content = message.message
         try:
-            if msg_content.startswith('{') and '"_wm_video":true' in msg_content:
+            if msg_content.startswith('{') and '_wm_video' in msg_content:
                 parsed = json.loads(msg_content)
                 if parsed.get('_wm_video'):
                     # Forward video message with type 'video'
