@@ -168,24 +168,18 @@ export class VideoPlaybackService {
       const fullBase64 = fragments.join('');
       const imageUrl = `data:image/jpeg;base64,${fullBase64}`;
 
-      // Update stream
-      let stream = this.streams.get(msg.userId);
-      if (!stream) {
-        stream = {
-          userId: msg.userId,
-          username: 'Unknown',
-          lastFrameTime: Date.now(),
-          currentFrameUrl: null,
-          isActive: true,
-        };
-        this.streams.set(msg.userId, stream);
-      }
-
-      stream.currentFrameUrl = imageUrl;
-      stream.lastFrameTime = Date.now();
-      stream.isActive = true;
+      // Update stream - create NEW object so React detects the change
+      const existingStream = this.streams.get(msg.userId);
+      const updatedStream: VideoStream = {
+        userId: msg.userId,
+        username: existingStream?.username || 'Unknown',
+        lastFrameTime: Date.now(),
+        currentFrameUrl: imageUrl,
+        isActive: true,
+      };
+      this.streams.set(msg.userId, updatedStream);
       console.log(`[VideoPlayback] Displaying frame ${msg.frameId}, URL length: ${imageUrl.length}`);
-      this.onStreamUpdate(this.streams);
+      this.onStreamUpdate(new Map(this.streams));
 
       // Mark this frame as completed and clean up older buffers
       state.lastCompletedFrameId = msg.frameId;
