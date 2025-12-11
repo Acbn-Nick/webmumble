@@ -70,6 +70,7 @@ export interface VideoFrameMessage {
   width?: number;             // Frame dimensions
   height?: number;
   tiles?: DeltaTile[];        // Changed tiles for delta frames
+  deltaType?: 'xor' | 'tiles'; // Type of delta encoding used
 }
 
 export interface DeltaTile {

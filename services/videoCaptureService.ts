@@ -21,15 +21,15 @@ export interface VideoCaptureConfig {
 }
 
 const DEFAULT_CONFIG: VideoCaptureConfig = {
-  fps: 5,          // Higher FPS with larger message support
-  quality: 0.5,    // Better quality
-  maxWidth: 1280,
-  maxHeight: 720,
+  fps: 2,          // Low FPS for bandwidth
+  quality: 0.3,    // Balance quality/size
+  maxWidth: 640,
+  maxHeight: 360,
 };
 
-const TILE_SIZE = 64; // Larger tiles for efficiency
-const KEYFRAME_INTERVAL = 30; // Send full frame every N frames
-const TILE_CHANGE_THRESHOLD = 100; // Sum of pixel diffs to consider tile changed
+const TILE_SIZE = 32; // Small tiles for granular updates
+const KEYFRAME_INTERVAL = 60; // Less frequent keyframes
+const TILE_CHANGE_THRESHOLD = 30; // Sensitive change detection
 
 export class VideoCaptureService {
   private mediaStream: MediaStream | null = null;
@@ -60,7 +60,7 @@ export class VideoCaptureService {
   private onSendDirect: VideoDirectCallback;
   private onSubscribersChange: SubscribersChangeCallback;
 
-  private readonly MAX_FRAGMENT_SIZE = 500000; // 500KB - server supports up to 1MB
+  private readonly MAX_FRAGMENT_SIZE = 4000; // ~4KB to stay well under Mumble limits
 
   constructor(
     onSendChannel: VideoChannelCallback,
@@ -346,11 +346,34 @@ export class VideoCaptureService {
       this.tileCtx = this.tileCanvas.getContext('2d');
     }
 
+    // Strategy 1: Try XOR-based delta first (best for sparse changes)
+    const xorResult = this.tryXorDelta(currentImageData, this.previousImageData, width, height);
+    if (xorResult && xorResult.length < this.MAX_FRAGMENT_SIZE * 0.8) {
+      console.log(`[VideoCapture] XOR DELTA ${frameId}: ${xorResult.length} bytes`);
+      const frameMsg: VideoFrameMessage = {
+        _wm_video: true,
+        type: 'video_frame',
+        userId: this.userId,
+        frameId: frameId,
+        fragmentIndex: 0,
+        fragmentCount: 1,
+        data: xorResult,
+        timestamp: Date.now(),
+        isKeyframe: false,
+        width,
+        height,
+        deltaType: 'xor',
+      };
+      this.onSendDirect(frameMsg, targetIds);
+      return;
+    }
+
+    // Strategy 2: Fall back to tile-based delta
     const changedTiles: DeltaTile[] = [];
     const tilesX = Math.ceil(width / TILE_SIZE);
     const tilesY = Math.ceil(height / TILE_SIZE);
 
-    // Compare each tile
+    // Compare each tile using hash for speed
     for (let ty = 0; ty < tilesY; ty++) {
       for (let tx = 0; tx < tilesX; tx++) {
         const tileX = tx * TILE_SIZE;
@@ -359,14 +382,14 @@ export class VideoCaptureService {
         const tileH = Math.min(TILE_SIZE, height - tileY);
 
         if (this.tileChanged(currentImageData, this.previousImageData, tileX, tileY, tileW, tileH, width)) {
-          // Extract tile as JPEG
+          // Extract tile as low-quality JPEG
           this.tileCanvas!.width = tileW;
           this.tileCanvas!.height = tileH;
           this.tileCtx!.putImageData(
             this.ctx!.getImageData(tileX, tileY, tileW, tileH),
             0, 0
           );
-          const tileDataUrl = this.tileCanvas!.toDataURL('image/jpeg', this.config.quality);
+          const tileDataUrl = this.tileCanvas!.toDataURL('image/jpeg', 0.2); // Very low quality for tiles
           const tileBase64 = tileDataUrl.split(',')[1];
 
           changedTiles.push({
@@ -385,43 +408,100 @@ export class VideoCaptureService {
 
     // Calculate total size
     const totalSize = changedTiles.reduce((sum, t) => sum + t.data.length, 0);
-    console.log(`[VideoCapture] DELTA ${frameId}: ${changedTiles.length}/${tilesX * tilesY} tiles changed, ${totalSize} bytes`);
+    console.log(`[VideoCapture] TILE DELTA ${frameId}: ${changedTiles.length}/${tilesX * tilesY} tiles, ${totalSize} bytes`);
 
-    // If too many tiles changed, send as keyframe instead
-    if (changedTiles.length > (tilesX * tilesY) * 0.5) {
-      console.log(`[VideoCapture] Too many tiles changed, sending keyframe instead`);
+    // If too many tiles changed or too large, send as keyframe
+    if (changedTiles.length > (tilesX * tilesY) * 0.4 || totalSize > this.MAX_FRAGMENT_SIZE) {
+      console.log(`[VideoCapture] Too many changes, sending keyframe`);
       this.sendKeyframe(frameId, width, height, targetIds);
       this.framesSinceKeyframe = 0;
       return;
     }
 
-    // Send delta frame (tiles embedded in single message if small enough)
-    const frameMsg: VideoFrameMessage = {
-      _wm_video: true,
-      type: 'video_frame',
-      userId: this.userId,
-      frameId: frameId,
-      fragmentIndex: 0,
-      fragmentCount: 1,
-      data: '', // No full frame data for delta
-      timestamp: Date.now(),
-      isKeyframe: false,
-      width,
-      height,
-      tiles: changedTiles,
-    };
+    // Send tiles individually to stay under message limit
+    // Group tiles into batches that fit in one message
+    const batches: DeltaTile[][] = [];
+    let currentBatch: DeltaTile[] = [];
+    let currentBatchSize = 200; // Base message overhead
 
-    // Check if message is too large and needs fragmentation
-    const msgJson = JSON.stringify(frameMsg);
-    if (msgJson.length > this.MAX_FRAGMENT_SIZE) {
-      // Fall back to keyframe if delta is too large
-      console.log(`[VideoCapture] Delta too large (${msgJson.length}), sending keyframe`);
-      this.sendKeyframe(frameId, width, height, targetIds);
-      this.framesSinceKeyframe = 0;
-      return;
+    for (const tile of changedTiles) {
+      const tileSize = tile.data.length + 50; // Overhead for coordinates
+      if (currentBatchSize + tileSize > this.MAX_FRAGMENT_SIZE && currentBatch.length > 0) {
+        batches.push(currentBatch);
+        currentBatch = [];
+        currentBatchSize = 200;
+      }
+      currentBatch.push(tile);
+      currentBatchSize += tileSize;
+    }
+    if (currentBatch.length > 0) {
+      batches.push(currentBatch);
     }
 
-    this.onSendDirect(frameMsg, targetIds);
+    // Send each batch
+    for (let i = 0; i < batches.length; i++) {
+      const frameMsg: VideoFrameMessage = {
+        _wm_video: true,
+        type: 'video_frame',
+        userId: this.userId,
+        frameId: frameId,
+        fragmentIndex: i,
+        fragmentCount: batches.length,
+        data: '',
+        timestamp: Date.now(),
+        isKeyframe: false,
+        width,
+        height,
+        tiles: batches[i],
+      };
+      this.onSendDirect(frameMsg, targetIds);
+    }
+  }
+
+  // XOR-based delta: creates image of differences, compresses well for sparse changes
+  private tryXorDelta(current: ImageData, previous: ImageData, width: number, height: number): string | null {
+    if (!this.tileCanvas || !this.tileCtx) {
+      this.tileCanvas = document.createElement('canvas');
+      this.tileCtx = this.tileCanvas.getContext('2d');
+    }
+
+    this.tileCanvas.width = width;
+    this.tileCanvas.height = height;
+
+    // Create XOR image
+    const xorData = this.tileCtx.createImageData(width, height);
+    let changedPixels = 0;
+
+    for (let i = 0; i < current.data.length; i += 4) {
+      // XOR RGB channels
+      const dr = current.data[i] ^ previous.data[i];
+      const dg = current.data[i + 1] ^ previous.data[i + 1];
+      const db = current.data[i + 2] ^ previous.data[i + 2];
+
+      xorData.data[i] = dr;
+      xorData.data[i + 1] = dg;
+      xorData.data[i + 2] = db;
+      xorData.data[i + 3] = 255;
+
+      if (dr > 10 || dg > 10 || db > 10) changedPixels++;
+    }
+
+    // If too many pixels changed, XOR won't compress well
+    const changeRatio = changedPixels / (width * height);
+    if (changeRatio > 0.3) {
+      return null;
+    }
+
+    // If almost nothing changed, skip
+    if (changeRatio < 0.001) {
+      return null;
+    }
+
+    this.tileCtx.putImageData(xorData, 0, 0);
+
+    // PNG compresses XOR data much better than JPEG (lots of black pixels)
+    const dataUrl = this.tileCanvas.toDataURL('image/png');
+    return dataUrl.split(',')[1];
   }
 
   private tileChanged(

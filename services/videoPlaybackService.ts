@@ -140,7 +140,13 @@ export class VideoPlaybackService {
       this.userFrameState.set(msg.userId, state);
     }
 
-    // Handle delta frames (single message with tiles)
+    // Handle XOR delta frames
+    if (msg.isKeyframe === false && msg.deltaType === 'xor' && msg.data) {
+      this.handleXorDelta(msg, state);
+      return;
+    }
+
+    // Handle tile-based delta frames
     if (msg.isKeyframe === false && msg.tiles && msg.tiles.length > 0) {
       this.handleDeltaFrame(msg, state);
       return;
@@ -194,6 +200,51 @@ export class VideoPlaybackService {
         }
       }
     }
+  }
+
+  private handleXorDelta(msg: VideoFrameMessage, state: UserFrameState): void {
+    if (!state.canvas || !state.ctx) {
+      console.log(`[VideoPlayback] XOR DELTA ${msg.frameId}: no canvas yet, waiting for keyframe`);
+      return;
+    }
+
+    if (msg.frameId <= state.lastCompletedFrameId) {
+      return;
+    }
+
+    console.log(`[VideoPlayback] XOR DELTA ${msg.frameId}: applying`);
+
+    // Load the XOR PNG
+    const img = new Image();
+    img.onload = () => {
+      // Create temp canvas for XOR image
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = msg.width || state.canvas!.width;
+      tempCanvas.height = msg.height || state.canvas!.height;
+      const tempCtx = tempCanvas.getContext('2d')!;
+      tempCtx.drawImage(img, 0, 0);
+
+      // Get XOR image data
+      const xorData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+
+      // Get current canvas data
+      const currentData = state.ctx!.getImageData(0, 0, state.canvas!.width, state.canvas!.height);
+
+      // Apply XOR to reconstruct new frame
+      for (let i = 0; i < currentData.data.length; i += 4) {
+        currentData.data[i] ^= xorData.data[i];
+        currentData.data[i + 1] ^= xorData.data[i + 1];
+        currentData.data[i + 2] ^= xorData.data[i + 2];
+      }
+
+      // Put result back
+      state.ctx!.putImageData(currentData, 0, 0);
+
+      // Update stream
+      this.updateStreamFromCanvas(state, msg.userId, msg.frameId);
+      state.lastCompletedFrameId = msg.frameId;
+    };
+    img.src = `data:image/png;base64,${msg.data}`;
   }
 
   private handleDeltaFrame(msg: VideoFrameMessage, state: UserFrameState): void {
