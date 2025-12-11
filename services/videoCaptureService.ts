@@ -21,9 +21,9 @@ export interface VideoCaptureConfig {
 
 const DEFAULT_CONFIG: VideoCaptureConfig = {
   fps: 2,          // 2 FPS - stable for Mumble text message throughput
-  quality: 0.3,    // Lower quality for smaller fragments
-  maxWidth: 640,
-  maxHeight: 360,
+  quality: 0.2,    // Low quality for fewer fragments
+  maxWidth: 480,
+  maxHeight: 270,
 };
 
 export class VideoCaptureService {
@@ -250,10 +250,10 @@ export class VideoCaptureService {
     this.canvas.height = height;
     this.ctx.drawImage(video, 0, 0, width, height);
 
-    // Compress to WebP (smaller than JPEG at similar quality)
-    const dataUrl = this.canvas.toDataURL('image/webp', this.config.quality);
+    // Compress to JPEG
+    const dataUrl = this.canvas.toDataURL('image/jpeg', this.config.quality);
     const base64Data = dataUrl.split(',')[1];
-    console.log(`[VideoCapture] Frame captured: ${width}x${height}, ${base64Data.length} bytes base64 (WebP)`);
+    console.log(`[VideoCapture] Frame captured: ${width}x${height}, ${base64Data.length} bytes base64`);
 
     // Fragment and send
     const fragments = this.fragmentData(base64Data);
