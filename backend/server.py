@@ -318,10 +318,10 @@ class MumbleClient:
             logger.warning("Cannot send chat: not connected")
             return
 
-        # Check message length - Mumble has a limit (usually ~5000 bytes)
+        # Check message length - server configured for up to 1MB
         msg_len = len(text.encode('utf-8'))
-        if msg_len > 5000:
-            logger.warning(f"Message too long ({msg_len} bytes), truncating or may fail")
+        if msg_len > 1000000:
+            logger.warning(f"Message too long ({msg_len} bytes), may fail")
             self.send_sync("log", {"text": f"Warning: Message too long ({msg_len} bytes), may fail", "level": "error"})
 
         try:
@@ -351,7 +351,7 @@ class MumbleClient:
 
         try:
             msg_len = len(text.encode('utf-8'))
-            if msg_len > 5000:
+            if msg_len > 1000000:  # 1MB limit
                 logger.warning(f"Direct message too long ({msg_len} bytes), may fail")
 
             user = self.mumble.users.get(user_session_id)

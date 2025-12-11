@@ -21,15 +21,15 @@ export interface VideoCaptureConfig {
 }
 
 const DEFAULT_CONFIG: VideoCaptureConfig = {
-  fps: 2,          // Can increase FPS now with delta encoding
-  quality: 0.3,    // Better quality since we send less data
-  maxWidth: 480,
-  maxHeight: 270,
+  fps: 5,          // Higher FPS with larger message support
+  quality: 0.5,    // Better quality
+  maxWidth: 1280,
+  maxHeight: 720,
 };
 
-const TILE_SIZE = 32; // Pixels per tile
+const TILE_SIZE = 64; // Larger tiles for efficiency
 const KEYFRAME_INTERVAL = 30; // Send full frame every N frames
-const TILE_CHANGE_THRESHOLD = 50; // Sum of pixel diffs to consider tile changed
+const TILE_CHANGE_THRESHOLD = 100; // Sum of pixel diffs to consider tile changed
 
 export class VideoCaptureService {
   private mediaStream: MediaStream | null = null;
@@ -60,7 +60,7 @@ export class VideoCaptureService {
   private onSendDirect: VideoDirectCallback;
   private onSubscribersChange: SubscribersChangeCallback;
 
-  private readonly MAX_FRAGMENT_SIZE = 4800;
+  private readonly MAX_FRAGMENT_SIZE = 500000; // 500KB - server supports up to 1MB
 
   constructor(
     onSendChannel: VideoChannelCallback,
