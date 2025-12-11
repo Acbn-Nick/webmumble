@@ -6,6 +6,7 @@ import {
   VideoSubscribeMessage,
   VideoUnsubscribeMessage,
   VideoMessage,
+  DeltaTile,
 } from '../types';
 
 export type VideoChannelCallback = (message: VideoAnnounceMessage) => void;
@@ -20,11 +21,15 @@ export interface VideoCaptureConfig {
 }
 
 const DEFAULT_CONFIG: VideoCaptureConfig = {
-  fps: 1,          // 1 FPS - very slow to ensure fragments arrive before next frame
-  quality: 0.1,    // Ultra low quality to fit in single fragment
-  maxWidth: 240,
-  maxHeight: 135,
+  fps: 2,          // Can increase FPS now with delta encoding
+  quality: 0.3,    // Better quality since we send less data
+  maxWidth: 480,
+  maxHeight: 270,
 };
+
+const TILE_SIZE = 32; // Pixels per tile
+const KEYFRAME_INTERVAL = 30; // Send full frame every N frames
+const TILE_CHANGE_THRESHOLD = 50; // Sum of pixel diffs to consider tile changed
 
 export class VideoCaptureService {
   private mediaStream: MediaStream | null = null;
@@ -38,6 +43,12 @@ export class VideoCaptureService {
   private isCapturing: boolean = false;
   private userId: string = '';
   private username: string = '';
+
+  // Delta encoding state
+  private previousImageData: ImageData | null = null;
+  private framesSinceKeyframe: number = 0;
+  private tileCanvas: HTMLCanvasElement | null = null;
+  private tileCtx: CanvasRenderingContext2D | null = null;
 
   private readonly ANNOUNCE_INTERVAL_MS = 5000; // Re-announce every 5 seconds
 
@@ -237,8 +248,6 @@ export class VideoCaptureService {
       return;
     }
 
-    console.log('[VideoCapture] Capturing frame for', this.subscribers.size, 'subscribers');
-
     const video = this.videoElement;
 
     // Scale to fit within max dimensions
@@ -261,31 +270,178 @@ export class VideoCaptureService {
     this.canvas.height = height;
     this.ctx.drawImage(video, 0, 0, width, height);
 
-    // Compress to JPEG
-    const dataUrl = this.canvas.toDataURL('image/jpeg', this.config.quality);
-    const base64Data = dataUrl.split(',')[1];
-    console.log(`[VideoCapture] Frame captured: ${width}x${height}, ${base64Data.length} bytes base64`);
+    // Get current frame pixel data
+    const currentImageData = this.ctx.getImageData(0, 0, width, height);
 
-    // Fragment and send
-    const fragments = this.fragmentData(base64Data);
+    // Determine if we need a keyframe
+    const needsKeyframe =
+      this.framesSinceKeyframe >= KEYFRAME_INTERVAL ||
+      !this.previousImageData ||
+      this.previousImageData.width !== width ||
+      this.previousImageData.height !== height;
+
     const currentFrameId = this.frameId++;
     const targetIds = Array.from(this.subscribers);
 
-    console.log(`[VideoCapture] Sending frame ${currentFrameId} (${fragments.length} fragments, ${base64Data.length} bytes) to ${targetIds.length} subscribers`);
+    if (needsKeyframe) {
+      // Send full keyframe
+      this.sendKeyframe(currentFrameId, width, height, targetIds);
+      this.framesSinceKeyframe = 0;
+    } else {
+      // Send delta frame with only changed tiles
+      this.sendDeltaFrame(currentFrameId, width, height, currentImageData, targetIds);
+      this.framesSinceKeyframe++;
+    }
+
+    // Store for next comparison
+    this.previousImageData = currentImageData;
+  }
+
+  private sendKeyframe(frameId: number, width: number, height: number, targetIds: string[]): void {
+    const dataUrl = this.canvas!.toDataURL('image/jpeg', this.config.quality);
+    const base64Data = dataUrl.split(',')[1];
+
+    console.log(`[VideoCapture] KEYFRAME ${frameId}: ${width}x${height}, ${base64Data.length} bytes`);
+
+    const fragments = this.fragmentData(base64Data);
     for (let i = 0; i < fragments.length; i++) {
       const frameMsg: VideoFrameMessage = {
         _wm_video: true,
         type: 'video_frame',
         userId: this.userId,
-        frameId: currentFrameId,
+        frameId: frameId,
         fragmentIndex: i,
         fragmentCount: fragments.length,
         data: fragments[i],
         timestamp: Date.now(),
+        isKeyframe: true,
+        width,
+        height,
       };
       this.onSendDirect(frameMsg, targetIds);
     }
-    console.log(`[VideoCapture] Frame ${currentFrameId} all ${fragments.length} fragments sent`);
+  }
+
+  private sendDeltaFrame(
+    frameId: number,
+    width: number,
+    height: number,
+    currentImageData: ImageData,
+    targetIds: string[]
+  ): void {
+    if (!this.previousImageData) return;
+
+    // Initialize tile canvas if needed
+    if (!this.tileCanvas) {
+      this.tileCanvas = document.createElement('canvas');
+      this.tileCtx = this.tileCanvas.getContext('2d');
+    }
+
+    const changedTiles: DeltaTile[] = [];
+    const tilesX = Math.ceil(width / TILE_SIZE);
+    const tilesY = Math.ceil(height / TILE_SIZE);
+
+    // Compare each tile
+    for (let ty = 0; ty < tilesY; ty++) {
+      for (let tx = 0; tx < tilesX; tx++) {
+        const tileX = tx * TILE_SIZE;
+        const tileY = ty * TILE_SIZE;
+        const tileW = Math.min(TILE_SIZE, width - tileX);
+        const tileH = Math.min(TILE_SIZE, height - tileY);
+
+        if (this.tileChanged(currentImageData, this.previousImageData, tileX, tileY, tileW, tileH, width)) {
+          // Extract tile as JPEG
+          this.tileCanvas!.width = tileW;
+          this.tileCanvas!.height = tileH;
+          this.tileCtx!.putImageData(
+            this.ctx!.getImageData(tileX, tileY, tileW, tileH),
+            0, 0
+          );
+          const tileDataUrl = this.tileCanvas!.toDataURL('image/jpeg', this.config.quality);
+          const tileBase64 = tileDataUrl.split(',')[1];
+
+          changedTiles.push({
+            x: tileX,
+            y: tileY,
+            data: tileBase64,
+          });
+        }
+      }
+    }
+
+    if (changedTiles.length === 0) {
+      console.log(`[VideoCapture] DELTA ${frameId}: no changes, skipping`);
+      return;
+    }
+
+    // Calculate total size
+    const totalSize = changedTiles.reduce((sum, t) => sum + t.data.length, 0);
+    console.log(`[VideoCapture] DELTA ${frameId}: ${changedTiles.length}/${tilesX * tilesY} tiles changed, ${totalSize} bytes`);
+
+    // If too many tiles changed, send as keyframe instead
+    if (changedTiles.length > (tilesX * tilesY) * 0.5) {
+      console.log(`[VideoCapture] Too many tiles changed, sending keyframe instead`);
+      this.sendKeyframe(frameId, width, height, targetIds);
+      this.framesSinceKeyframe = 0;
+      return;
+    }
+
+    // Send delta frame (tiles embedded in single message if small enough)
+    const frameMsg: VideoFrameMessage = {
+      _wm_video: true,
+      type: 'video_frame',
+      userId: this.userId,
+      frameId: frameId,
+      fragmentIndex: 0,
+      fragmentCount: 1,
+      data: '', // No full frame data for delta
+      timestamp: Date.now(),
+      isKeyframe: false,
+      width,
+      height,
+      tiles: changedTiles,
+    };
+
+    // Check if message is too large and needs fragmentation
+    const msgJson = JSON.stringify(frameMsg);
+    if (msgJson.length > this.MAX_FRAGMENT_SIZE) {
+      // Fall back to keyframe if delta is too large
+      console.log(`[VideoCapture] Delta too large (${msgJson.length}), sending keyframe`);
+      this.sendKeyframe(frameId, width, height, targetIds);
+      this.framesSinceKeyframe = 0;
+      return;
+    }
+
+    this.onSendDirect(frameMsg, targetIds);
+  }
+
+  private tileChanged(
+    current: ImageData,
+    previous: ImageData,
+    tileX: number,
+    tileY: number,
+    tileW: number,
+    tileH: number,
+    stride: number
+  ): boolean {
+    let diff = 0;
+    const threshold = TILE_CHANGE_THRESHOLD * tileW * tileH;
+
+    for (let y = 0; y < tileH; y++) {
+      for (let x = 0; x < tileW; x++) {
+        const px = tileX + x;
+        const py = tileY + y;
+        const idx = (py * stride + px) * 4;
+
+        // Compare RGB (skip alpha)
+        diff += Math.abs(current.data[idx] - previous.data[idx]);
+        diff += Math.abs(current.data[idx + 1] - previous.data[idx + 1]);
+        diff += Math.abs(current.data[idx + 2] - previous.data[idx + 2]);
+
+        if (diff > threshold) return true;
+      }
+    }
+    return false;
   }
 
   private fragmentData(base64Data: string): string[] {

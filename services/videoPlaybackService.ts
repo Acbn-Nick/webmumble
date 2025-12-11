@@ -8,6 +8,7 @@ import {
   VideoUnsubscribeMessage,
   VideoStream,
   AvailableStream,
+  DeltaTile,
 } from '../types';
 
 export type SendSubscribeCallback = (msg: VideoSubscribeMessage | VideoUnsubscribeMessage) => void;
@@ -23,6 +24,9 @@ interface FrameBuffer {
 interface UserFrameState {
   lastCompletedFrameId: number;
   frameBuffers: Map<number, FrameBuffer>;  // Multiple buffers keyed by frameId
+  // Delta encoding state
+  canvas: HTMLCanvasElement | null;
+  ctx: CanvasRenderingContext2D | null;
 }
 
 export class VideoPlaybackService {
@@ -127,10 +131,22 @@ export class VideoPlaybackService {
     // Get or create per-user frame state
     let state = this.userFrameState.get(msg.userId);
     if (!state) {
-      state = { lastCompletedFrameId: -1, frameBuffers: new Map() };
+      state = {
+        lastCompletedFrameId: -1,
+        frameBuffers: new Map(),
+        canvas: null,
+        ctx: null,
+      };
       this.userFrameState.set(msg.userId, state);
     }
 
+    // Handle delta frames (single message with tiles)
+    if (msg.isKeyframe === false && msg.tiles && msg.tiles.length > 0) {
+      this.handleDeltaFrame(msg, state);
+      return;
+    }
+
+    // Handle keyframes (may be fragmented)
     console.log(`[VideoPlayback] Frame ${msg.frameId} frag ${msg.fragmentIndex+1}/${msg.fragmentCount}, lastCompleted: ${state.lastCompletedFrameId}`);
 
     // Ignore fragments from frames older than our last completed frame
@@ -157,7 +173,7 @@ export class VideoPlaybackService {
 
     // Check if frame is complete
     if (buffer.fragments.size === buffer.totalFragments) {
-      console.log(`[VideoPlayback] Frame ${msg.frameId} COMPLETE!`);
+      console.log(`[VideoPlayback] KEYFRAME ${msg.frameId} COMPLETE!`);
 
       // Reassemble frame
       const fragments: string[] = [];
@@ -166,20 +182,9 @@ export class VideoPlaybackService {
         if (frag) fragments.push(frag);
       }
       const fullBase64 = fragments.join('');
-      const imageUrl = `data:image/jpeg;base64,${fullBase64}`;
 
-      // Update stream - create NEW object so React detects the change
-      const existingStream = this.streams.get(msg.userId);
-      const updatedStream: VideoStream = {
-        userId: msg.userId,
-        username: existingStream?.username || 'Unknown',
-        lastFrameTime: Date.now(),
-        currentFrameUrl: imageUrl,
-        isActive: true,
-      };
-      this.streams.set(msg.userId, updatedStream);
-      console.log(`[VideoPlayback] Displaying frame ${msg.frameId}, URL length: ${imageUrl.length}`);
-      this.onStreamUpdate(new Map(this.streams));
+      // Draw keyframe to canvas for delta composition
+      this.drawKeyframeToCanvas(state, fullBase64, msg.width || 480, msg.height || 270, msg.frameId);
 
       // Mark this frame as completed and clean up older buffers
       state.lastCompletedFrameId = msg.frameId;
@@ -187,6 +192,108 @@ export class VideoPlaybackService {
         if (frameId <= msg.frameId) {
           state.frameBuffers.delete(frameId);
         }
+      }
+    }
+  }
+
+  private handleDeltaFrame(msg: VideoFrameMessage, state: UserFrameState): void {
+    if (!msg.tiles || msg.tiles.length === 0) return;
+    if (!state.canvas || !state.ctx) {
+      console.log(`[VideoPlayback] DELTA ${msg.frameId}: no canvas yet, waiting for keyframe`);
+      return;
+    }
+
+    // Ignore old delta frames
+    if (msg.frameId <= state.lastCompletedFrameId) {
+      return;
+    }
+
+    console.log(`[VideoPlayback] DELTA ${msg.frameId}: applying ${msg.tiles.length} tiles`);
+
+    // Apply each changed tile to the canvas
+    let tilesApplied = 0;
+    const applyTile = (tile: DeltaTile) => {
+      const img = new Image();
+      img.onload = () => {
+        state.ctx!.drawImage(img, tile.x, tile.y);
+        tilesApplied++;
+
+        // Once all tiles are applied, update the stream
+        if (tilesApplied === msg.tiles!.length) {
+          this.updateStreamFromCanvas(state, msg.userId, msg.frameId);
+          state.lastCompletedFrameId = msg.frameId;
+        }
+      };
+      img.src = `data:image/jpeg;base64,${tile.data}`;
+    };
+
+    msg.tiles.forEach(applyTile);
+  }
+
+  private drawKeyframeToCanvas(
+    state: UserFrameState,
+    base64Data: string,
+    width: number,
+    height: number,
+    frameId: number
+  ): void {
+    // Initialize canvas if needed
+    if (!state.canvas) {
+      state.canvas = document.createElement('canvas');
+      state.ctx = state.canvas.getContext('2d');
+    }
+
+    state.canvas.width = width;
+    state.canvas.height = height;
+
+    const img = new Image();
+    img.onload = () => {
+      state.ctx!.drawImage(img, 0, 0);
+      this.updateStreamFromCanvas(state, '', frameId); // userId filled by caller context
+    };
+    img.src = `data:image/jpeg;base64,${base64Data}`;
+
+    // Also update stream immediately with the base64 data
+    const imageUrl = `data:image/jpeg;base64,${base64Data}`;
+    // Find which user this state belongs to
+    for (const [userId, s] of this.userFrameState) {
+      if (s === state) {
+        const existingStream = this.streams.get(userId);
+        const updatedStream: VideoStream = {
+          userId: userId,
+          username: existingStream?.username || 'Unknown',
+          lastFrameTime: Date.now(),
+          currentFrameUrl: imageUrl,
+          isActive: true,
+        };
+        this.streams.set(userId, updatedStream);
+        console.log(`[VideoPlayback] Displaying keyframe ${frameId}`);
+        this.onStreamUpdate(new Map(this.streams));
+        break;
+      }
+    }
+  }
+
+  private updateStreamFromCanvas(state: UserFrameState, hintUserId: string, frameId: number): void {
+    if (!state.canvas) return;
+
+    const imageUrl = state.canvas.toDataURL('image/jpeg', 0.9);
+
+    // Find which user this state belongs to
+    for (const [userId, s] of this.userFrameState) {
+      if (s === state) {
+        const existingStream = this.streams.get(userId);
+        const updatedStream: VideoStream = {
+          userId: userId,
+          username: existingStream?.username || 'Unknown',
+          lastFrameTime: Date.now(),
+          currentFrameUrl: imageUrl,
+          isActive: true,
+        };
+        this.streams.set(userId, updatedStream);
+        console.log(`[VideoPlayback] Displaying delta frame ${frameId}`);
+        this.onStreamUpdate(new Map(this.streams));
+        break;
       }
     }
   }

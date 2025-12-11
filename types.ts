@@ -65,6 +65,17 @@ export interface VideoFrameMessage {
   fragmentCount: number;
   data: string;
   timestamp: number;
+  // Delta encoding fields
+  isKeyframe?: boolean;       // True for full frame, false/undefined for delta
+  width?: number;             // Frame dimensions
+  height?: number;
+  tiles?: DeltaTile[];        // Changed tiles for delta frames
+}
+
+export interface DeltaTile {
+  x: number;      // Tile X position in pixels
+  y: number;      // Tile Y position in pixels
+  data: string;   // Base64 JPEG of just this tile
 }
 
 export interface VideoStopMessage {
