@@ -20,10 +20,10 @@ export interface VideoCaptureConfig {
 }
 
 const DEFAULT_CONFIG: VideoCaptureConfig = {
-  fps: 2,          // Lower FPS - Mumble text messages can't handle high rates
-  quality: 0.4,    // Slightly higher quality since fewer frames
-  maxWidth: 960,
-  maxHeight: 540,
+  fps: 1,          // Very low FPS - Mumble text messages can't handle high rates
+  quality: 0.3,    // Lower quality for smaller fragments
+  maxWidth: 640,
+  maxHeight: 360,
 };
 
 export class VideoCaptureService {
@@ -253,12 +253,14 @@ export class VideoCaptureService {
     // Compress to JPEG
     const dataUrl = this.canvas.toDataURL('image/jpeg', this.config.quality);
     const base64Data = dataUrl.split(',')[1];
+    console.log(`[VideoCapture] Frame captured: ${width}x${height}, ${base64Data.length} bytes base64`);
 
     // Fragment and send
     const fragments = this.fragmentData(base64Data);
     const currentFrameId = this.frameId++;
     const targetIds = Array.from(this.subscribers);
 
+    console.log(`[VideoCapture] Sending frame ${currentFrameId} (${fragments.length} fragments, ${base64Data.length} bytes) to ${targetIds.length} subscribers`);
     for (let i = 0; i < fragments.length; i++) {
       const frameMsg: VideoFrameMessage = {
         _wm_video: true,
@@ -272,6 +274,7 @@ export class VideoCaptureService {
       };
       this.onSendDirect(frameMsg, targetIds);
     }
+    console.log(`[VideoCapture] Frame ${currentFrameId} all ${fragments.length} fragments sent`);
   }
 
   private fragmentData(base64Data: string): string[] {

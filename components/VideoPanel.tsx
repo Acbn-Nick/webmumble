@@ -102,10 +102,10 @@ export const VideoPanel: React.FC<VideoPanelProps> = ({
           </div>
         )}
 
-        {/* Active Video Streams */}
-        {activeStreams.length > 0 ? (
-          <div className={`grid ${gridClass} gap-2`}>
-            {activeStreams.map((stream) => (
+        {/* Video Streams - show all including ones waiting for frames */}
+        {allStreams.length > 0 ? (
+          <div className={`grid ${allStreams.length === 1 ? 'grid-cols-1' : allStreams.length <= 4 ? 'grid-cols-2' : 'grid-cols-3'} gap-2`}>
+            {allStreams.map((stream) => (
               <div
                 key={stream.userId}
                 className={`relative bg-[rgba(0,0,0,0.3)] rounded-lg overflow-hidden border border-[rgba(255,255,255,0.1)] ${
@@ -148,8 +148,8 @@ export const VideoPanel: React.FC<VideoPanelProps> = ({
                   </button>
                 </div>
 
-                {/* Video frame */}
-                {stream.currentFrameUrl && (
+                {/* Video frame or loading placeholder */}
+                {stream.currentFrameUrl ? (
                   <img
                     src={stream.currentFrameUrl}
                     alt={`${stream.username}'s screen`}
@@ -160,6 +160,10 @@ export const VideoPanel: React.FC<VideoPanelProps> = ({
                       minHeight: '100px',
                     }}
                   />
+                ) : (
+                  <div className="flex items-center justify-center text-xs text-[rgba(255,255,255,0.4)]" style={{ minHeight: '150px' }}>
+                    Waiting for video frames...
+                  </div>
                 )}
               </div>
             ))}

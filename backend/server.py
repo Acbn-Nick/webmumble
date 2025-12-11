@@ -209,6 +209,9 @@ class MumbleClient:
             if msg_content.startswith('{') and '_wm_video' in msg_content:
                 parsed = json.loads(msg_content)
                 if parsed.get('_wm_video'):
+                    msg_type = parsed.get('type', 'unknown')
+                    frame_info = f" frame={parsed.get('frameId')} frag={parsed.get('fragmentIndex')}/{parsed.get('fragmentCount')}" if msg_type == 'video_frame' else ""
+                    logger.info(f"[Video] Received {msg_type}{frame_info} from {sender}")
                     # Forward video message with type 'video'
                     self.send_sync("video", {
                         "sender": sender,
@@ -216,7 +219,8 @@ class MumbleClient:
                         "data": parsed
                     })
                     return  # Don't process as regular chat
-        except (json.JSONDecodeError, KeyError):
+        except (json.JSONDecodeError, KeyError) as e:
+            logger.debug(f"Failed to parse potential video message: {e}")
             pass  # Not a video message, process normally
 
         # Regular chat message
@@ -346,12 +350,16 @@ class MumbleClient:
             return False
 
         try:
+            msg_len = len(text.encode('utf-8'))
+            if msg_len > 5000:
+                logger.warning(f"Direct message too long ({msg_len} bytes), may fail")
+
             user = self.mumble.users.get(user_session_id)
             if user:
                 user.send_text_message(text)
                 return True
             else:
-                logger.warning(f"User session {user_session_id} not found")
+                logger.warning(f"User session {user_session_id} not found for direct message")
                 return False
         except Exception as e:
             logger.error(f"Error sending direct message: {e}")
@@ -437,11 +445,18 @@ async def handle_client(websocket):
                     video_data = payload.get("data", {})
                     video_json = json.dumps(video_data)
                     target_ids = payload.get("targetIds", [])
+                    vmsg_type = video_data.get('type', 'unknown')
+                    if vmsg_type == 'video_frame':
+                        logger.debug(f"[Video] Sending frame {video_data.get('frameId')} frag {video_data.get('fragmentIndex')}/{video_data.get('fragmentCount')} to {len(target_ids)} users")
+                    else:
+                        logger.info(f"[Video] Sending {vmsg_type} to {target_ids}")
                     for target_id in target_ids:
                         try:
-                            client.send_direct_message(video_json, int(target_id))
-                        except (ValueError, TypeError):
-                            pass
+                            success = client.send_direct_message(video_json, int(target_id))
+                            if not success:
+                                logger.warning(f"[Video] Failed to send to {target_id}")
+                        except (ValueError, TypeError) as e:
+                            logger.error(f"[Video] Error sending to {target_id}: {e}")
 
             except json.JSONDecodeError:
                 logger.error("Invalid JSON received")

@@ -102,6 +102,22 @@ const App: React.FC = () => {
       case 'sync_tree':
         // Full tree sync from Go backend
         setRootChannel(payload);
+
+        // Set user info on video services when we have tree data
+        // This ensures our ID is known before any video processing
+        const findSelf = (ch: Channel): User | null => {
+          for (const u of ch.users) if (u.isSelf) return u;
+          for (const child of ch.children) {
+            const found = findSelf(child);
+            if (found) return found;
+          }
+          return null;
+        };
+        const self = findSelf(payload);
+        if (self) {
+          console.log('[App] Setting video service user info from sync_tree:', self.id, self.name);
+          videoPlayback.current?.setMyInfo(self.id, self.name);
+        }
         break;
       
       case 'user_moved':
@@ -131,7 +147,9 @@ const App: React.FC = () => {
          // Handle incoming video message
          if (payload.data) {
            const videoMsg = payload.data as VideoMessage;
-           console.log('[Video] Received:', videoMsg.type, 'from', (videoMsg as any).userId || (videoMsg as any).subscriberId);
+           const fromId = (videoMsg as any).userId || (videoMsg as any).subscriberId;
+           const frameInfo = videoMsg.type === 'video_frame' ? ` frame ${(videoMsg as any).frameId} frag ${(videoMsg as any).fragmentIndex+1}/${(videoMsg as any).fragmentCount}` : '';
+           console.log(`[Video] Received: ${videoMsg.type}${frameInfo} from ${fromId}`);
 
            // If this is a subscribe/unsubscribe message for us (we're streaming)
            if (videoMsg.type === 'video_subscribe') {

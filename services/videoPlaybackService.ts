@@ -102,9 +102,14 @@ export class VideoPlaybackService {
   }
 
   private handleVideoStart(msg: VideoStartMessage): void {
+    console.log(`[VideoPlayback] handleVideoStart from ${msg.userId} (${msg.username}), myUserId: ${this.myUserId}`);
     // Don't display our own stream
-    if (msg.userId === this.myUserId) return;
+    if (msg.userId === this.myUserId) {
+      console.log('[VideoPlayback] Ignoring our own video_start');
+      return;
+    }
 
+    console.log(`[VideoPlayback] Creating stream entry for ${msg.userId}`);
     this.streams.set(msg.userId, {
       userId: msg.userId,
       username: msg.username,
@@ -126,14 +131,29 @@ export class VideoPlaybackService {
       this.userFrameState.set(msg.userId, state);
     }
 
+    console.log(`[VideoPlayback] Frame ${msg.frameId} frag ${msg.fragmentIndex+1}/${msg.fragmentCount}, latestFrameId: ${state.latestFrameId}`);
+
     // If this fragment is from an older frame, ignore it
     if (msg.frameId < state.latestFrameId) {
+      console.log(`[VideoPlayback] Ignoring old frame ${msg.frameId} < ${state.latestFrameId}`);
       return;
     }
 
     // If this is a newer frame, discard old buffer and start fresh
     if (msg.frameId > state.latestFrameId) {
+      console.log(`[VideoPlayback] New frame ${msg.frameId}, discarding old buffer`);
       state.latestFrameId = msg.frameId;
+      state.currentBuffer = {
+        fragments: new Map(),
+        totalFragments: msg.fragmentCount,
+        timestamp: Date.now(),
+      };
+    }
+
+    // Safety check: if buffer is null but we're on the current frame, recreate it
+    // This can happen if cleanup ran between fragments
+    if (!state.currentBuffer && msg.frameId === state.latestFrameId) {
+      console.log(`[VideoPlayback] Recreating buffer for frame ${msg.frameId}`);
       state.currentBuffer = {
         fragments: new Map(),
         totalFragments: msg.fragmentCount,
@@ -144,6 +164,7 @@ export class VideoPlaybackService {
     // Add fragment to current buffer
     if (state.currentBuffer) {
       state.currentBuffer.fragments.set(msg.fragmentIndex, msg.data);
+      console.log(`[VideoPlayback] Buffer now has ${state.currentBuffer.fragments.size}/${state.currentBuffer.totalFragments} fragments`);
 
       // Check if frame is complete
       if (state.currentBuffer.fragments.size === state.currentBuffer.totalFragments) {
@@ -174,6 +195,7 @@ export class VideoPlaybackService {
         stream.currentFrameUrl = imageUrl;
         stream.lastFrameTime = Date.now();
         stream.isActive = true;
+        console.log(`[VideoPlayback] Calling onStreamUpdate with ${this.streams.size} streams, frame URL length: ${imageUrl.length}`);
         this.onStreamUpdate(this.streams);
 
         // Clear buffer (will be recreated for next frame)
